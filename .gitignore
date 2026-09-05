@@ -1,0 +1,21 @@
+# Dependências
+backend/vendor/
+frontend/node_modules/
+
+# Variáveis de ambiente sensíveis
+backend/.env
+frontend/.env.local
+
+# Logs e caches
+backend/storage/logs/*.log
+backend/bootstrap/cache/*.php
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+frontend/dist/
+
+# Sistema operacional e IDEs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
