@@ -11,11 +11,12 @@ class OrderItem extends Model
     use HasUuids;
 
     protected $fillable = [
+        'id',
         'order_id',
         'product_id',
-        'seller_id',
         'unit_price_cents',
         'quantity',
+        'seller_id',
         'commission_rate_bps',
         'fee_platform_cents',
         'net_seller_cents',
@@ -29,10 +30,5 @@ class OrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
-    }
-
-    public function seller(): BelongsTo
-    {
-        return $this->belongsTo(SellerProfile::class, 'seller_id');
     }
 }

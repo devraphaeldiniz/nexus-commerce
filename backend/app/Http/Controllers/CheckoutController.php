@@ -2,140 +2,132 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\SendOrderConfirmationEmail;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
-use App\Models\SellerWallet;
-use App\Models\WalletTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CheckoutController extends Controller
 {
-    private const DEFAULT_TAKE_RATE_BPS = 1300; // 13.00%
-
     public function process(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'customer_email'          => 'required|email',
-            'shipping_zip_code'       => 'nullable|string|max:9',
-            'shipping_service'        => 'nullable|string|in:STANDARD,EXPRESS',
-            'shipping_cost_cents'     => 'nullable|integer|min:0',
-            'estimated_delivery_days' => 'nullable|integer|min:1',
-            'items'                   => 'required|array|min:1',
-            'items.*.id'              => 'required|uuid',
-            'items.*.quantity'        => 'required|integer|min:1',
+        $validated = $request->validate([
+            'customer_name'         => 'nullable|string|max:255',
+            'customer_email'        => 'required|email|max:255',
+            'shipping_zip_code'     => 'required|string|max:10',
+            'shipping_street'       => 'nullable|string|max:255',
+            'shipping_number'       => 'required|string|max:30',
+            'shipping_complement'   => 'nullable|string|max:100',
+            'shipping_neighborhood' => 'nullable|string|max:100',
+            'shipping_city'         => 'nullable|string|max:100',
+            'shipping_state'        => 'nullable|string|max:2',
+            'shipping_service'      => 'required|string|max:50',
+            'shipping_cents'        => 'required|integer|min:0',
+            'payment_method'        => 'nullable|string',
+            'items'                 => 'required|array|min:1',
+            'items.*.product_id'    => 'required|string|uuid',
+            'items.*.quantity'      => 'required|integer|min:1',
         ]);
 
-        $idempotencyKey = $request->header('X-Idempotency-Key');
-        if (! $idempotencyKey) {
-            return response()->json(['message' => 'Header X-Idempotency-Key é obrigatório'], 400);
-        }
+        return DB::transaction(function () use ($validated, $request) {
+            $user = $request->user();
+            $subtotalCents = 0;
+            $itemsToCreate = [];
 
-        $existingOrder = Order::with('items.product')->where('idempotency_key', $idempotencyKey)->first();
-        if ($existingOrder) {
-            return response()->json($existingOrder, 200);
-        }
+            foreach ($validated['items'] as $item) {
+                $product = Product::lockForUpdate()->find($item['product_id']);
 
-        try {
-            $order = DB::transaction(function () use ($data, $idempotencyKey) {
-                $itemsSubtotalCents = 0;
-                $itemsToCreate = [];
-                $sellerEarnings = [];
-
-                foreach ($data['items'] as $itemData) {
-                    $product = Product::with('seller.wallet')
-                        ->where('id', $itemData['id'])
-                        ->lockForUpdate()
-                        ->first();
-
-                    if (! $product) {
-                        throw new \Exception("Produto ID {$itemData['id']} não encontrado.", 404);
-                    }
-
-                    if (! $product->seller || ! $product->seller->isOperational()) {
-                        throw new \Exception("Vendedor do produto {$product->name} não está habilitado para vendas.", 422);
-                    }
-
-                    if ($product->stock_quantity < $itemData['quantity']) {
-                        throw new \Exception("Estoque insuficiente para {$product->name}.", 422);
-                    }
-
-                    $product->decrement('stock_quantity', $itemData['quantity']);
-
-                    $subtotal = $product->price_cents * $itemData['quantity'];
-                    $itemsSubtotalCents += $subtotal;
-
-                    // Split: 13% plataforma, 87% seller
-                    $platformFee = (int) round(($subtotal * self::DEFAULT_TAKE_RATE_BPS) / 10000);
-                    $netSeller = $subtotal - $platformFee;
-
-                    $itemsToCreate[] = [
-                        'product_id'          => $product->id,
-                        'seller_id'           => $product->seller_id,
-                        'unit_price_cents'    => $product->price_cents,
-                        'quantity'            => $itemData['quantity'],
-                        'commission_rate_bps' => self::DEFAULT_TAKE_RATE_BPS,
-                        'fee_platform_cents'  => $platformFee,
-                        'net_seller_cents'    => $netSeller,
-                    ];
-
-                    $sId = $product->seller_id;
-                    $sellerEarnings[$sId] = ($sellerEarnings[$sId] ?? 0) + $netSeller;
+                if (! $product) {
+                    return response()->json([
+                        'message' => 'Um produto do carrinho não foi encontrado. Esvazie o carrinho e selecione novamente.'
+                    ], 422);
                 }
 
-                $shippingCents = $data['shipping_cost_cents'] ?? 0;
-                $grandTotalCents = $itemsSubtotalCents + $shippingCents;
-
-                $order = Order::create([
-                    'customer_email'          => $data['customer_email'],
-                    'shipping_zip_code'       => $data['shipping_zip_code'] ?? null,
-                    'shipping_service'        => $data['shipping_service'] ?? 'STANDARD',
-                    'shipping_cost_cents'     => $shippingCents,
-                    'estimated_delivery_days' => $data['estimated_delivery_days'] ?? null,
-                    'total_cents'             => $grandTotalCents,
-                    'status'                  => 'PAID',
-                    'idempotency_key'         => $idempotencyKey,
-                ]);
-
-                foreach ($itemsToCreate as $item) {
-                    $item['order_id'] = $order->id;
-                    OrderItem::create($item);
+                if ($product->stock_quantity < $item['quantity']) {
+                    return response()->json([
+                        'message' => "Estoque insuficiente para: {$product->name}"
+                    ], 422);
                 }
 
-                // Retenção em custódia (Escrow)
-                foreach ($sellerEarnings as $sellerId => $netCents) {
-                    $wallet = SellerWallet::where('seller_profile_id', $sellerId)->lockForUpdate()->first();
-                    if ($wallet) {
-                        $wallet->increment('balance_escrow_cents', $netCents);
+                $product->decrement('stock_quantity', $item['quantity']);
 
-                        WalletTransaction::create([
-                            'wallet_id'    => $wallet->id,
-                            'order_id'     => $order->id,
-                            'type'         => 'ESCROW_HOLD',
-                            'amount_cents' => $netCents,
-                            'description'  => "Retenção de custódia do pedido #{$order->id}",
-                        ]);
-                    }
-                }
+                $lineTotalCents = $product->price_cents * $item['quantity'];
+                $subtotalCents += $lineTotalCents;
 
-                return $order->load('items.product');
-            });
-
-            Cache::forget('catalog:products:available');
-            foreach ($data['items'] as $item) {
-                Cache::forget("catalog:product:{$item['id']}");
+                $itemsToCreate[] = [
+                    'product_id'       => $product->id,
+                    'seller_id'        => $product->seller_id,
+                    'quantity'         => $item['quantity'],
+                    'unit_price_cents' => $product->price_cents,
+                ];
             }
 
-            SendOrderConfirmationEmail::dispatch($order);
+            $totalCents = $subtotalCents + $validated['shipping_cents'];
+            $cleanZip = substr(preg_replace('/\D/', '', $validated['shipping_zip_code']), 0, 9);
 
-            return response()->json($order, 201);
-        } catch (\Exception $e) {
-            $status = in_array($e->getCode(), [404, 422]) ? $e->getCode() : 500;
-            return response()->json(['error' => $e->getMessage()], $status);
-        }
+            $fullAddress = trim(sprintf(
+                '%s, %s%s - %s, %s/%s',
+                $validated['shipping_street'] ?? 'Rua',
+                $validated['shipping_number'],
+                $validated['shipping_complement'] ? ' (' . $validated['shipping_complement'] . ')' : '',
+                $validated['shipping_neighborhood'] ?? '',
+                $validated['shipping_city'] ?? '',
+                $validated['shipping_state'] ?? ''
+            ));
+
+            $order = Order::create([
+                'id'                  => (string) Str::uuid(),
+                'user_id'             => $user ? $user->id : null,
+                'customer_email'      => $validated['customer_email'],
+                'total_cents'         => $totalCents,
+                'idempotency_key'     => (string) Str::uuid(),
+                'status'              => 'PAID',
+                'shipping_zip_code'   => $cleanZip,
+                'shipping_service'    => $validated['shipping_service'],
+                'shipping_cost_cents' => $validated['shipping_cents'],
+                'shipping_address'    => $fullAddress,
+            ]);
+
+            foreach ($itemsToCreate as $itemData) {
+                $orderItem = OrderItem::create([
+                    'id'               => (string) Str::uuid(),
+                    'order_id'         => $order->id,
+                    'product_id'       => $itemData['product_id'],
+                    'seller_id'        => $itemData['seller_id'],
+                    'quantity'         => $itemData['quantity'],
+                    'unit_price_cents' => $itemData['unit_price_cents'],
+                ]);
+
+                // Cálculo de repasse: 13% comissão plataforma, 87% líquido vendedor
+                $grossItemCents = $itemData['unit_price_cents'] * $itemData['quantity'];
+                $netSellerCents = (int) round($grossItemCents * 0.87);
+                $feeCents = $grossItemCents - $netSellerCents;
+
+                if (DB::getSchemaBuilder()->hasTable('order_escrows') && $itemData['seller_id']) {
+                    DB::table('order_escrows')->insert([
+                        'id'                 => (string) Str::uuid(),
+                        'order_id'           => $order->id,
+                        'order_item_id'      => $orderItem->id,
+                        'seller_id'          => $itemData['seller_id'],
+                        'gross_amount_cents' => $grossItemCents,
+                        'platform_fee_cents' => $feeCents,
+                        'net_seller_cents'   => $netSellerCents,
+                        'status'             => 'HELD',
+                        'created_at'         => now(),
+                        'updated_at'         => now(),
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'message'  => 'Pedido confirmado com sucesso!',
+                'order_id' => $order->id,
+                'status'   => $order->status,
+                'total'    => $order->total_cents,
+            ], 201);
+        });
     }
 }
