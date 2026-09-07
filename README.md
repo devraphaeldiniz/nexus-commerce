@@ -1,6 +1,6 @@
 # Nexus Commerce ⚡
 
-Plataforma de marketplace completa e escalável, com fluxo integrado de escrow, moderação de lojistas, painel operacional multifuncional e controle de autenticação unificado.
+Plataforma de marketplace completa e escalável, com fluxo integrado de custódia financeira (Escrow), moderação de lojistas em tempo real, painel operacional unificado e controle de autenticação via RBAC.
 
 ---
 
@@ -16,15 +16,15 @@ Plataforma de marketplace completa e escalável, com fluxo integrado de escrow, 
 ## 🚀 Arquitetura e Funcionalidades
 
 ### 1. Autenticação e Perfis (Roles)
-* **ADMIN:** Acesso global irrestrito, moderação/aprovação de lojistas, publicação direta de produtos na vitrine, gerenciamento de perfil com CPF vinculado e troca de senha.
-* **SELLER:** Fluxo de cadastro com status pendente (`is_approved = false`), liberação após moderação administrativa, dashboard de métricas, gestão e cadastro de produtos.
-* **CUSTOMER:** Catálogo público, visualização detalhada, cálculo de frete, fluxo de checkout e pedidos.
+* **ADMIN:** Acesso global irrestrito, moderação e aprovação de lojistas parceiros, publicação de produtos no catálogo, gestão de perfil, auditoria de segurança e alteração de credenciais.
+* **SELLER:** Fluxo de cadastro com moderação prévia obrigatória (`is_approved = false`), dashboard de métricas e controle de catálogo de vendas.
+* **CUSTOMER:** Navegação pública, busca em catálogo, cálculo de frete, carrinho e fluxo de checkout integrado.
 
 ### 2. Painel Unificado de Operações
-* **🛡️ Moderação de Lojistas:** Fila em tempo real para o Admin aprovar novas contas de vendedores.
-* **📦 Anúncio de Produtos:** Cadastro ágil com precificação, controle de estoque inicial, imagens e categorias.
-* **👤 Perfil & CPF:** Edição de dados cadastrais e vínculo de documento CPF para liquidações.
-* **🔒 Gestão de Segurança:** Fluxo seguro de alteração de senha com confirmação e validação do hash atual.
+* **🛡️ Moderação de Lojistas:** Fila em tempo real para auditoria e aprovação de novos parceiros comerciais.
+* **📦 Anúncio de Produtos:** Cadastro ágil de itens com controle de estoque, categorias e precificação.
+* **👤 Perfil & Documento:** Gestão de dados cadastrais com vínculo e validação de CPF.
+* **🔒 Gestão de Credenciais:** Alteração de senha segura com validação de hash prévio e auditoria.
 
 ---
 
@@ -35,7 +35,9 @@ Plataforma de marketplace completa e escalável, com fluxo integrado de escrow, 
 
 ---
 
-## 🔑 Credenciais Padrão do Administrador
+## 🔐 Configuração Inicial do Administrador
 
-* **E-mail:** `admin@nexuscommerce.com`
-* **Senha Inicial:** `NexusAdmin123`
+Para provisionar o primeiro usuário administrativo em ambientes locais ou isolados, utilize o comando Artisan ou configure as variáveis de ambiente correspondentes:
+
+```bash
+php artisan tinker --execute="App\Models\User::firstOrCreate(['email' => env('ADMIN_DEFAULT_EMAIL', 'admin@seudominio.com')], ['name' => 'Nexus Master', 'password' => Hash::make(env('ADMIN_DEFAULT_PASSWORD', 'sua-senha-segura')), 'role' => 'ADMIN', 'is_approved' => true]);"
