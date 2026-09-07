@@ -1,88 +1,41 @@
-# Nexus Commerce
+# Nexus Commerce ⚡
 
-Plataforma full-stack de marketplace e e-commerce desenvolvida com backend robusto em Laravel e SPA reativo em Vue.js, conteinerizada e implantada em produção na plataforma Railway.
-
----
-
-## Deploy em Produção
-
-* **Frontend:** https://frontend-production-3603.up.railway.app
-* **API Backend:** https://pleasant-light-production.up.railway.app
+Plataforma de marketplace completa e escalável, com fluxo integrado de escrow, moderação de lojistas, painel operacional multifuncional e controle de autenticação unificado.
 
 ---
 
-## Tecnologias
+## 🛠️ Stack Tecnológica
 
-### Backend
-* **PHP 8.4** com Nginx e PHP-FPM (`serversideup/php:8.4-fpm-nginx`)
-* **Laravel 11**
-* **PostgreSQL** para persistência relacional
-* **Composer** para gestão de pacotes
-
-### Frontend
-* **Vue.js** com Vite
-* **Lucide Icons**
-* **Nginx Alpine** para servir os assets estáticos com suporte a SPA routing
-
-### Infraestrutura & DevOps
-* **Docker** (Multi-stage build para frontend e runtime otimizado para PHP)
-* **Railway** (PaaS para orquestração de containers e provisionamento do PostgreSQL)
+* **Backend:** Laravel 11 / PHP 8.3
+* **Frontend:** Vue.js 3 / Vite / Tailwind CSS
+* **Banco de Dados:** PostgreSQL
+* **Infraestrutura / Cloud:** Railway (Containers Docker independentes)
 
 ---
 
-## Estrutura do Projeto
+## 🚀 Arquitetura e Funcionalidades
 
-```text
-nexus-commerce/
-├── backend/                # Aplicação Laravel (API)
-│   ├── app/
-│   ├── config/
-│   ├── database/migrations/
-│   ├── routes/
-│   └── Dockerfile          # Configuração Docker do serviço PHP/Nginx
-├── frontend/               # Aplicação Vue / Vite
-│   ├── src/
-│   ├── package.json
-│   └── Dockerfile          # Configuração Docker da SPA
-├── Dockerfile              # Dockerfile raiz de produção (Frontend)
-├── docker-compose.yml      # Orquestração para ambiente local
-└── railway.toml            # Declaração do builder Railway
-Funcionalidades Principais
-Arquitetura de Marketplace: Ledger de transações, custódia (escrow) e requisições de payout.
+### 1. Autenticação e Perfis (Roles)
+* **ADMIN:** Acesso global irrestrito, moderação/aprovação de lojistas, publicação direta de produtos na vitrine, gerenciamento de perfil com CPF vinculado e troca de senha.
+* **SELLER:** Fluxo de cadastro com status pendente (`is_approved = false`), liberação após moderação administrativa, dashboard de métricas, gestão e cadastro de produtos.
+* **CUSTOMER:** Catálogo público, visualização detalhada, cálculo de frete, fluxo de checkout e pedidos.
 
-Governança & Perfis: Gestão de usuários, papéis (roles), auditoria KYC e logs de segurança.
+### 2. Painel Unificado de Operações
+* **🛡️ Moderação de Lojistas:** Fila em tempo real para o Admin aprovar novas contas de vendedores.
+* **📦 Anúncio de Produtos:** Cadastro ágil com precificação, controle de estoque inicial, imagens e categorias.
+* **👤 Perfil & CPF:** Edição de dados cadastrais e vínculo de documento CPF para liquidações.
+* **🔒 Gestão de Segurança:** Fluxo seguro de alteração de senha com confirmação e validação do hash atual.
 
-Logística & Pedidos: Rastreamento, cotação de frete e gestão de disputas/reivindicações.
+---
 
-Autenticação: Tokens de API seguros com controle de expiração.
+## 🌐 Ambientes em Produção
 
-Executando Localmente
-Pré-requisitos
-Docker e Docker Compose instalados
+* **Frontend:** [https://frontend-production-3603.up.railway.app](https://frontend-production-3603.up.railway.app)
+* **API Backend:** [https://pleasant-light-production.up.railway.app](https://pleasant-light-production.up.railway.app)
 
-Git
+---
 
-Passos
-Clone o repositório:
+## 🔑 Credenciais Padrão do Administrador
 
-Bash
-git clone [https://github.com/devraphaeldiniz/nexus-commerce.git](https://github.com/devraphaeldiniz/nexus-commerce.git)
-cd nexus-commerce
-Suba o ambiente via Docker Compose:
-
-Bash
-docker compose up -d --build
-Instale as dependências e rode as migrações no container do backend:
-
-Bash
-docker compose exec backend composer install
-docker compose exec backend php artisan key:generate
-docker compose exec backend php artisan migrate
-Acesse:
-
-Frontend: http://localhost:5173 ou porta mapeada do container
-
-API: http://localhost:8000
-
-Licença
-Este projeto é desenvolvido para fins de demonstração técnica e comercial.
+* **E-mail:** `admin@nexuscommerce.com`
+* **Senha Inicial:** `NexusAdmin123`
