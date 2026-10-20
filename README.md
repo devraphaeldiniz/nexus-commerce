@@ -28,6 +28,7 @@ Documentação complementar:
 - [Como contribuir](CONTRIBUTING.md)
 - [Contrato OpenAPI](docs/openapi.yaml)
 - [Roteiro de demonstração](docs/DEMO.md)
+- [Changelog](CHANGELOG.md)
 
 ## Funcionalidades
 
@@ -126,6 +127,8 @@ Defina `ADMIN_DEFAULT_EMAIL` e `ADMIN_DEFAULT_PASSWORD` no ambiente. Não use cr
 ## Status do projeto
 
 ![CI](https://github.com/devraphaeldiniz/nexus-commerce/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/badge/coverage-CI%20artifact-informational)
+![Release](https://img.shields.io/github/v/release/devraphaeldiniz/nexus-commerce?label=demo%20release)
 
 Demo local recomendada com `php artisan nexus:demo`. Screenshots da aplicação serão adicionadas posteriormente.
 

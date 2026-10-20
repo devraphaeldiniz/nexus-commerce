@@ -51,7 +51,7 @@ jobs:
         with:
           php-version: '8.4'
           extensions: mbstring, dom, fileinfo, pgsql, pdo_pgsql
-          coverage: none
+          coverage: xdebug
       - run: composer install --no-interaction --prefer-dist
       - run: composer audit --no-interaction
         continue-on-error: true
@@ -64,7 +64,12 @@ jobs:
           DB_DATABASE: nexus_test
           DB_USERNAME: postgres
           DB_PASSWORD: postgres
-      - run: php artisan test
+      - run: php artisan test --coverage-clover=coverage.xml
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
         env:
           DB_CONNECTION: pgsql
           DB_HOST: 127.0.0.1

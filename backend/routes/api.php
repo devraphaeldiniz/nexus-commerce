@@ -40,135 +40,13 @@ Route::middleware('api.auth')->group(function () {
 Route::middleware('throttle:10,1')->group(function () {
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
-Route::post('/legacy/register', function (Request $request) {
-    $validated = $request->validate([
-        'name'       => 'required|string|max:255',
-        'email'      => 'required|email|unique:users,email',
-        'password'   => 'required|string|min:6',
-        'role'       => 'nullable|string|in:CUSTOMER,SELLER',
-        'store_name' => 'nullable|string|max:255',
-    ]);
+Route::post('/auth/verify-email', [AuthController::class, 'verifyCode']);
 
-    $role = $validated['role'] ?? 'CUSTOMER';
-    $isApproved = ($role === 'CUSTOMER');
-
-    $user = User::create([
-        'name'              => $validated['name'],
-        'email'             => $validated['email'],
-        'password'          => Hash::make($validated['password']),
-        'role'              => $role,
-        'is_approved'       => $isApproved,
-        'email_verified_at' => null,
-    ]);
-
-    if ($role === 'SELLER') {
-        \App\Models\SellerProfile::create([
-            'user_id'    => $user->id,
-            'store_name' => $validated['store_name'] ?? "Loja de {$user->name}",
-            'status'     => 'PENDING_APPROVAL',
-        ]);
-    }
-
-    ResendService::generateOtp($user->email);
-
-    return response()->json([
-        'message'               => 'Conta criada! Enviamos um código de verificação para o seu e-mail.',
-        'requires_verification' => true,
-        'email'                 => $user->email,
-    ], 201);
-});
-
-Route::post('/auth/verify-email', function (Request $request) {
-    return app(AuthController::class)->verifyCode($request);
-});
-
-Route::post('/legacy/auth/verify-code', function (Request $request) {
-    $request->validate([
-        'email' => 'required|email',
-        'code'  => 'required|string|size:6',
-    ]);
-
-    $record = DB::table('email_verifications')
-        ->where('email', $request->email)
-        ->where('code', $request->code)
-        ->where('expires_at', '>', now())
-        ->first();
-
-    if (!$record) {
-        return response()->json(['message' => 'Código inválido ou expirado.'], 422);
-    }
-
-    $user = User::where('email', $request->email)->firstOrFail();
-    $user->email_verified_at = now();
-    $user->save();
-
-    DB::table('email_verifications')->where('email', $request->email)->delete();
-
-    $token = bin2hex(random_bytes(32));
-    $user->remember_token = $token;
-    $user->save();
-
-    return response()->json([
-        'message' => 'E-mail verificado com sucesso!',
-        'user'    => $user,
-        'token'   => $token,
-    ]);
-});
-
-Route::post('/auth/resend-code', function (Request $request) {
+Route::post('/auth/resend-code', [AuthController::class, 'resendCode']);
     $request->validate(['email' => 'required|email']);
     $user = User::where('email', $request->email)->firstOrFail();
     ResendService::generateOtp($user->email);
     return response()->json(['message' => 'Novo código de verificação enviado!']);
-});
-
-Route::post('/legacy/login', function (Request $request) {
-    $request->validate([
-        'email'    => 'required|email',
-        'password' => 'required|string',
-    ]);
-
-    $user = User::where('email', $request->email)->first();
-
-    if (!$user || !Hash::check($request->password, $user->password)) {
-        return response()->json(['message' => 'Credenciais inválidas.'], 401);
-    }
-
-    if ($user->role !== 'ADMIN' && !$user->email_verified_at) {
-        ResendService::generateOtp($user->email);
-        return response()->json([
-            'message'               => 'Seu e-mail ainda não foi verificado. Enviamos um novo código.',
-            'requires_verification' => true,
-            'email'                 => $user->email,
-        ], 403);
-    }
-
-    $token = bin2hex(random_bytes(32));
-    $user->remember_token = $token;
-    $user->save();
-
-    if ($user->role === 'ADMIN') {
-        $ip = $request->ip();
-        $date = now()->format('d/m/Y H:i:s');
-        $htmlAlert = "
-        <div style='font-family: Arial, sans-serif; background-color: #0c1222; color: #f8fafc; padding: 25px; border-radius: 10px; max-width: 500px;'>
-            <h3 style='color: #f43f5e;'>🛡️ Alerta de Segurança Nexus Commerce</h3>
-            <p>Um login administrativo foi realizado na sua conta:</p>
-            <ul>
-                <li><strong>E-mail:</strong> {$user->email}</li>
-                <li><strong>Data/Hora:</strong> {$date}</li>
-                <li><strong>IP de Origem:</strong> {$ip}</li>
-            </ul>
-        </div>";
-        ResendService::sendEmail($user->email, '⚠️ Alerta de Segurança: Login de Administrador', $htmlAlert);
-    }
-
-    return response()->json([
-        'message' => 'Autenticado com sucesso!',
-        'user'    => $user,
-        'token'   => $token,
-    ]);
-});
 });
 
 // CHECKOUT ASAAS (PIX & CARTÃO)

@@ -1,0 +1,37 @@
+name: E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    name: Browser smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run smoke test against production demo
+        run: |
+          node - <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage();
+            await page.goto('https://frontend-production-3603.up.railway.app', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!await page.locator('body').isVisible()) throw new Error('Página não renderizou');
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
