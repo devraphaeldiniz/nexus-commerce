@@ -131,12 +131,16 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'card_holder_name' => 'required|string|max:100',
             'card_number'      => 'required|string|min:13|max:19',
+            'cvv'              => 'prohibited',
             'exp_month'        => 'required|string|size:2',
             'exp_year'         => 'required|string|min:2|max:4',
             'card_brand'       => ['required', Rule::in(['VISA', 'MASTERCARD', 'ELO', 'AMEX', 'HIPERCARD'])],
         ]);
 
         $cleanNumber = preg_replace('/\D/', '', $validated['card_number']);
+        if (strlen($cleanNumber) < 13 || strlen($cleanNumber) > 19) {
+            return response()->json(['message' => 'Número de cartão inválido.'], 422);
+        }
         $lastFour = substr($cleanNumber, -4);
 
         $user = $request->user();

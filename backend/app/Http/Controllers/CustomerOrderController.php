@@ -33,6 +33,16 @@ class CustomerOrderController extends Controller
     public function show(Request $request, string $id): JsonResponse
     {
         $order = Order::with(['items.product'])->findOrFail($id);
+        $user = $request->user();
+
+        if ($user && $order->user_id !== $user->id && $order->customer_email !== $user->email) {
+            return response()->json(['message' => 'Pedido não encontrado.'], 404);
+        }
+
+        if (! $user && $request->input('email') !== $order->customer_email) {
+            return response()->json(['message' => 'Pedido não encontrado.'], 404);
+        }
+
         return response()->json($order);
     }
 }

@@ -60,7 +60,7 @@ const feedbackError = ref('')
 
 const loadProfileData = async () => {
   try {
-    const { data } = await axios.get('http://localhost:8000/api/auth/me')
+    const { data } = await axios.get('/auth/me')
     auth.user = data
     profileName.value = data.name
     savedCards.value = data.saved_cards || []
@@ -81,7 +81,7 @@ const handleUpdateProfile = async () => {
   }
 
   try {
-    const { data } = await axios.put('http://localhost:8000/api/profile', {
+    const { data } = await axios.put('/profile', {
       name: profileName.value,
       current_password: currentPassword.value || null,
       new_password: newPassword.value || null,
@@ -106,7 +106,7 @@ const handleStoreCard = async () => {
   feedbackSuccess.value = ''
 
   try {
-    const { data } = await axios.post('http://localhost:8000/api/profile/cards', newCard.value)
+    const { data } = await axios.post('/profile/cards', newCard.value)
     savedCards.value.unshift(data.card)
     feedbackSuccess.value = 'Cartão salvo com sucesso para compras futuras!'
     isAddingCard.value = false
@@ -121,7 +121,7 @@ const handleStoreCard = async () => {
 const handleDeleteCard = async (cardId) => {
   if (!confirm('Deseja realmente remover este cartão salvo?')) return
   try {
-    await axios.delete(`http://localhost:8000/api/profile/cards/${cardId}`)
+    await axios.delete(`/profile/cards/${cardId}`)
     savedCards.value = savedCards.value.filter(c => c.id !== cardId)
     feedbackSuccess.value = 'Cartão removido com sucesso.'
   } catch (err) {
@@ -133,7 +133,7 @@ const start2faSetup = async () => {
   isSettingUp2fa.value = true
   feedbackError.value = ''
   try {
-    const { data } = await axios.post('http://localhost:8000/api/profile/2fa/setup')
+    const { data } = await axios.post('/profile/2fa/setup')
     twoFactorSetupData.value = data
   } catch (err) {
     feedbackError.value = 'Falha ao gerar segredo 2FA.'
@@ -148,7 +148,7 @@ const confirmEnable2fa = async () => {
   feedbackError.value = ''
 
   try {
-    const { data } = await axios.post('http://localhost:8000/api/profile/2fa/enable', {
+    const { data } = await axios.post('/profile/2fa/enable', {
       code: twoFactorConfirmCode.value,
     })
     auth.user.two_factor_enabled = true
@@ -168,7 +168,7 @@ const handleDisable2fa = async () => {
   feedbackError.value = ''
 
   try {
-    const { data } = await axios.post('http://localhost:8000/api/profile/2fa/disable', {
+    const { data } = await axios.post('/profile/2fa/disable', {
       password: disable2faPassword.value,
     })
     auth.user.two_factor_enabled = false

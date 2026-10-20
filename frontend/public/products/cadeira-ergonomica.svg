@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#090d16"/>
+    </radialGradient>
+    <linearGradient id="mesh" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <filter id="chairShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.7"/>
+    </filter>
+  </defs>
+  <rect width="500" height="500" fill="url(#bg)"/>
+  <g filter="url(#chairShadow)">
+    <!-- Apoio de Cabeça -->
+    <rect x="205" y="45" width="90" height="42" rx="14" fill="#334155" stroke="#64748b" stroke-width="2"/>
+    <rect x="242" y="87" width="16" height="25" rx="3" fill="#1e293b"/>
+    <!-- Encosto Mesh Ergonômico -->
+    <path d="M 180 112 Q 250 95 320 112 Q 330 190 315 265 Q 250 280 185 265 Q 170 190 180 112 Z" fill="url(#mesh)" stroke="#64748b" stroke-width="3"/>
+    <!-- Suporte Lombar Ativo -->
+    <path d="M 195 215 Q 250 230 305 215" stroke="#38bdf8" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <!-- Braços da Cadeira 3D -->
+    <rect x="145" y="210" width="28" height="65" rx="10" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+    <rect x="327" y="210" width="28" height="65" rx="10" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+    <path d="M 160 275 L 160 305 L 195 315" stroke="#1e293b" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path d="M 340 275 L 340 305 L 305 315" stroke="#1e293b" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <!-- Assento Estofado com Espuma Injetada -->
+    <path d="M 165 295 Q 250 285 335 295 Q 345 340 330 348 Q 250 360 170 348 Q 155 340 165 295 Z" fill="#1e293b" stroke="#475569" stroke-width="3"/>
+    <!-- Pistão a Gás e Mecanismo Relax -->
+    <rect x="243" y="352" width="14" height="42" fill="#94a3b8"/>
+    <rect x="238" y="360" width="24" height="15" rx="3" fill="#0f172a"/>
+    <!-- Base Estrela 5 Pontas com Rodízios -->
+    <path d="M 250 394 L 175 435 M 250 394 L 325 435 M 250 394 L 205 450 M 250 394 L 295 450 M 250 394 L 250 455" stroke="#475569" stroke-width="8" stroke-linecap="round"/>
+    <!-- Rodízios de Silicone -->
+    <circle cx="170" cy="440" r="10" fill="#0284c7"/>
+    <circle cx="330" cy="440" r="10" fill="#0284c7"/>
+    <circle cx="202" cy="455" r="10" fill="#0284c7"/>
+    <circle cx="298" cy="455" r="10" fill="#0284c7"/>
+    <circle cx="250" cy="460" r="10" fill="#0284c7"/>
+  </g>
+</svg>

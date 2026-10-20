@@ -92,7 +92,7 @@ const handleLogin = async () => {
   errorMessage.value = ''
 
   try {
-    const { data } = await axios.post('http://localhost:8000/api/auth/login', {
+    const { data } = await axios.post('/auth/login', {
       email: loginEmail.value,
       password: loginPassword.value,
       totp_code: totpCode.value || null,
@@ -104,11 +104,7 @@ const handleLogin = async () => {
       return
     }
 
-    auth.token = data.token
-    auth.user = data.user
-    localStorage.setItem('nexus_token', data.token)
-    localStorage.setItem('nexus_user', JSON.stringify(data.user))
-    axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
+    auth.setAuth(data.user)
 
     redirectAfterAuth()
   } catch (err) {
@@ -129,7 +125,7 @@ const handleRegister = async () => {
   }
 
   try {
-    const { data } = await axios.post('http://localhost:8000/api/auth/register', regForm.value)
+    const { data } = await axios.post('/auth/register', regForm.value)
     pendingEmail.value = regForm.value.email
     activeMode.value = 'VERIFY_EMAIL'
     successMessage.value = data.message
@@ -153,17 +149,13 @@ const handleConfirmEmail = async () => {
   errorMessage.value = ''
 
   try {
-    const { data } = await axios.post('http://localhost:8000/api/auth/verify-email', {
+    const { data } = await axios.post('/auth/verify-email', {
       email: pendingEmail.value,
       code: emailVerificationCode.value,
     })
 
     clearInterval(timerInterval)
-    auth.token = data.token
-    auth.user = data.user
-    localStorage.setItem('nexus_token', data.token)
-    localStorage.setItem('nexus_user', JSON.stringify(data.user))
-    axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
+    auth.setAuth(data.user)
 
     redirectAfterAuth()
   } catch (err) {
@@ -181,7 +173,7 @@ const handleResendCode = async () => {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const { data } = await axios.post('http://localhost:8000/api/auth/resend-code', {
+    const { data } = await axios.post('/auth/resend-code', {
       email: pendingEmail.value,
     })
     successMessage.value = data.message

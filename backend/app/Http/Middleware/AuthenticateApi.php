@@ -12,38 +12,30 @@ class AuthenticateApi
 {
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        $token = null;
+        $token = $request->cookie('nexus_auth');
 
-        // 1. Extração do token de qualquer origem (Header, Bearer, Query param)
+        // Compatibilidade temporária: tokens Bearer serão aceitos apenas durante a migração.
+
         $header = $request->header('Authorization')
             ?: $request->server('HTTP_AUTHORIZATION')
             ?: $request->server('REDIRECT_HTTP_AUTHORIZATION');
 
-        if ($header && preg_match('/Bearer\s+(.*)$/i', $header, $matches)) {
+        if (! $token && $header && preg_match('/^Bearer\s+(.+)$/i', $header, $matches)) {
             $token = trim($matches[1]);
-        }
-
-        if (! $token) {
-            $token = $request->query('token') ?: $request->input('token');
         }
 
         if (! $token) {
             return response()->json(['message' => 'Token de autenticação não fornecido.'], 401);
         }
 
-        // 2. Busca o usuário correspondente
-        $user = User::where('remember_token', $token)->first();
+        // 2. Busca o token pelo hash e valida sua expiração
+        $user = User::where('api_token', hash('sha256', $token))
+            ->where(function ($query) {
+                $query->whereNull('api_token_expires_at')
+                    ->orWhere('api_token_expires_at', '>', now());
+            })
+            ->first();
 
-        if (! $user && DB::getSchemaBuilder()->hasTable('personal_access_tokens')) {
-            $tokenRecord = DB::table('personal_access_tokens')
-                ->where('token', hash('sha256', $token))
-                ->orWhere('token', $token)
-                ->first();
-
-            if ($tokenRecord) {
-                $user = User::find($tokenRecord->tokenable_id);
-            }
-        }
 
         if (! $user) {
             return response()->json([
@@ -63,6 +55,10 @@ class AuthenticateApi
             }
 
             $currentRole = strtoupper((string) $user->role);
+
+            if (in_array($currentRole, ['SELLER'], true) && ! $user->is_approved) {
+                return response()->json(['message' => 'Vendedor aguardando aprovação.'], 403);
+            }
 
             if (! in_array($currentRole, $allowed, true)) {
                 return response()->json([

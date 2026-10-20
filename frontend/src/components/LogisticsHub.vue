@@ -14,7 +14,7 @@ const actionLoading = ref(null)
 const loadQueue = async () => {
   isLoading.value = true
   try {
-    const { data } = await axios.get('http://localhost:8000/api/logistics/queue', {
+    const { data } = await axios.get('/logistics/queue', {
       params: { status: filterStatus.value }
     })
     orders.value = data.orders
@@ -29,7 +29,7 @@ const loadQueue = async () => {
 const markInPreparation = async (orderId) => {
   actionLoading.value = orderId
   try {
-    await axios.post(`http://localhost:8000/api/logistics/orders/${orderId}/prepare`)
+    await axios.post(`/logistics/orders/${orderId}/prepare`)
     await loadQueue()
   } catch (err) {
     alert(err.response?.data?.message || 'Falha ao mover para separação.')
@@ -41,7 +41,7 @@ const markInPreparation = async (orderId) => {
 const shipOrder = async (orderId) => {
   actionLoading.value = orderId
   try {
-    const { data } = await axios.post(`http://localhost:8000/api/orders/${orderId}/ship`)
+    const { data } = await axios.post(`/orders/${orderId}/ship`)
     alert(`Etiqueta emitida com sucesso! Rastreio: ${data.tracking_code}`)
     await loadQueue()
   } catch (err) {
@@ -54,7 +54,7 @@ const shipOrder = async (orderId) => {
 const deliverOrder = async (orderId) => {
   actionLoading.value = orderId
   try {
-    await axios.post(`http://localhost:8000/api/orders/${orderId}/deliver`)
+    await axios.post(`/orders/${orderId}/deliver`)
     await loadQueue()
   } catch (err) {
     alert(err.response?.data?.message || 'Falha ao confirmar entrega.')

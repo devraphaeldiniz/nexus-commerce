@@ -14,13 +14,18 @@ class OrderLifecycleController extends Controller
     public function markAsDelivered(Request $request, string $id): JsonResponse
     {
         $order = Order::findOrFail($id);
+        $this->authorize('deliver', $order);
+
+        if ($order->status !== 'SHIPPED') {
+            return response()->json(['message' => 'Apenas pedidos despachados podem ser entregues.'], 422);
+        }
 
         if ($order->status === 'DELIVERED') {
             return response()->json(['message' => 'Pedido já se encontra como entregue.'], 400);
         }
 
         DB::transaction(function () use ($order) {
-            $order->update(['status' => 'DELIVERED']);
+            $order->update(['status' => 'DELIVERED', 'delivered_at' => now()]);
 
             // Busca todas as custódias vinculadas a esse pedido
             $escrows = DB::table('order_escrows')

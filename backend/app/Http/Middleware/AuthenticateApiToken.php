@@ -40,11 +40,7 @@ class AuthenticateApiToken
             $user = User::where('api_token', $token)->first();
         }
 
-        // Fallback para primeiro usuário cadastrado durante os testes caso use UUID simples
-        if (! $user) {
-            $user = User::first();
-        }
-
+        // Nunca autentique um usuário arbitrário quando o token for inválido.
         if (! $user) {
             return response()->json(['message' => 'Sessão inválida ou expirada.'], 401);
         }

@@ -36,7 +36,7 @@ const payoutError = ref(null)
 
 const loadSellers = async () => {
   try {
-    const { data } = await axios.get('http://localhost:8000/api/sellers')
+    const { data } = await axios.get('/sellers')
     sellers.value = data
     if (data.length > 0 && !selectedSellerId.value) {
       selectedSellerId.value = data[0].id
@@ -50,7 +50,7 @@ const loadSellers = async () => {
 const loadDashboard = async (sellerId) => {
   isLoading.value = true
   try {
-    const { data } = await axios.get(`http://localhost:8000/api/sellers/${sellerId}/dashboard`)
+    const { data } = await axios.get(`/sellers/${sellerId}/dashboard`)
     dashboardData.value = data
   } catch (err) {
     console.error('Erro ao carregar dashboard:', err)
@@ -69,7 +69,7 @@ const transitionKyc = async (action) => {
   if (!selectedSellerId.value) return
   isUpdatingStatus.value = true
   try {
-    await axios.post(`http://localhost:8000/api/sellers/${selectedSellerId.value}/kyc-transition`, {
+    await axios.post(`/sellers/${selectedSellerId.value}/kyc-transition`, {
       action,
       reason: `Ação manual executada via painel operacional (${action}).`,
     })
@@ -96,7 +96,7 @@ const handleRequestPayout = async () => {
   payoutSuccess.value = null
 
   try {
-    const { data } = await axios.post(`http://localhost:8000/api/sellers/${selectedSellerId.value}/payout`, {
+    const { data } = await axios.post(`/sellers/${selectedSellerId.value}/payout`, {
       pix_key_type: pixKeyType.value,
       pix_key: pixKey.value,
       amount_cents: amountCents,

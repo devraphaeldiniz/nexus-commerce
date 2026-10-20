@@ -5,41 +5,36 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Product extends Model
 {
     use HasFactory, HasUuids;
 
     protected $fillable = [
-        'id',
         'seller_id',
         'category_id',
         'name',
         'slug',
         'description',
         'price_cents',
-        'original_price_cents',
         'stock_quantity',
         'image_url',
-        'images',
         'weight_grams',
-        'length_cm',
-        'width_cm',
         'height_cm',
+        'width_cm',
+        'length_cm',
     ];
 
-    protected $casts = [
-        'images' => 'array',
-    ];
+    // Cria os atributos virtuais 'price' e 'title' para compatibilidade total com o Vue
+    protected $appends = ['price', 'title'];
 
-    public function category(): BelongsTo
+    public function getPriceAttribute()
     {
-        return $this->belongsTo(Category::class);
+        return $this->price_cents ? round($this->price_cents / 100, 2) : 0.00;
     }
 
-    public function seller(): BelongsTo
+    public function getTitleAttribute()
     {
-        return $this->belongsTo(SellerProfile::class, 'seller_id');
+        return $this->name;
     }
 }

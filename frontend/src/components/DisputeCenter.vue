@@ -29,7 +29,7 @@ const openDispute = async () => {
   isSubmitting.value = true
   claimError.value = null
   try {
-    const { data } = await axios.post('http://localhost:8000/api/disputes/open', {
+    const { data } = await axios.post('/disputes/open', {
       order_id: orderId.value,
       customer_email: customerEmail.value,
       reason: reason.value,
@@ -46,7 +46,7 @@ const openDispute = async () => {
 const sendMessage = async () => {
   if (!newMessage.value || !activeDispute.value) return
   try {
-    const { data } = await axios.post(`http://localhost:8000/api/disputes/${activeDispute.value.id}/messages`, {
+    const { data } = await axios.post(`/disputes/${activeDispute.value.id}/messages`, {
       sender_type: senderType.value,
       sender_name: senderType.value === 'CUSTOMER' ? customerEmail.value : 'Nexus Support',
       message: newMessage.value,
@@ -62,7 +62,7 @@ const resolveDispute = async (decision) => {
   if (!resolutionNotes.value || !activeDispute.value) return
   isResolving.value = true
   try {
-    const { data } = await axios.post(`http://localhost:8000/api/disputes/${activeDispute.value.id}/resolve`, {
+    const { data } = await axios.post(`/disputes/${activeDispute.value.id}/resolve`, {
       resolution: decision,
       notes: resolutionNotes.value,
     })

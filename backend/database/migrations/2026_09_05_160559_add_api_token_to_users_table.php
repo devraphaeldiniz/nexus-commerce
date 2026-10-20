@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            //
-        });
+        // Migration mantida por compatibilidade histórica. A coluna api_token
+        // é criada pela migration 2026_09_05_160616_add_api_token_to_users_table.
     }
 
     /**

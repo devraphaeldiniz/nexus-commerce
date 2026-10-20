@@ -2,147 +2,159 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Product;
-use Illuminate\Http\JsonResponse;
+use App\Models\SellerProfile;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class SellerProductController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
         $user = $request->user();
-        $sellerProfile = DB::table('seller_profiles')->where('user_id', $user->id)->first();
+        $seller = SellerProfile::where('user_id', $user->id)->first();
 
-        if (! $sellerProfile) {
-            return response()->json([], 200);
+        if (!$seller) {
+            return response()->json([]);
         }
 
-        $products = Product::where('seller_id', $sellerProfile->id)
-            ->with('category')
-            ->orderByDesc('created_at')
-            ->get();
-
+        $products = Product::where('seller_id', $seller->id)->latest()->get();
         return response()->json($products);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         $user = $request->user();
-        $sellerProfile = DB::table('seller_profiles')->where('user_id', $user->id)->first();
 
-        if (! $sellerProfile) {
-            return response()->json(['message' => 'Perfil de vendedor não localizado.'], 404);
-        }
+        $seller = SellerProfile::firstOrCreate(
+            ['user_id' => $user->id],
+            [
+                'store_name'      => $user->role === 'ADMIN' ? 'Nexus Oficial Store' : "Loja de {$user->name}",
+                'legal_name'      => $user->name,
+                'document_type'   => 'CPF',
+                'document_number' => $user->cpf ?? '00000000000',
+            ]
+        );
 
         $validated = $request->validate([
-            'name'                 => 'required|string|max:255',
-            'description'          => 'nullable|string',
-            'category_id'          => 'required|exists:categories,id',
-            'price_cents'          => 'required|integer|min:100',
-            'original_price_cents' => 'nullable|integer|min:100',
-            'stock_quantity'       => 'required|integer|min:0',
-            'images'               => 'required|array|min:3',
-            'images.*'             => 'required|string|url|max:500',
-            'weight_grams'         => 'nullable|integer|min:1',
-            'length_cm'            => 'nullable|integer|min:1',
-            'width_cm'             => 'nullable|integer|min:1',
-            'height_cm'            => 'nullable|integer|min:1',
+            'title'          => 'required|string|max:255',
+            'description'    => 'nullable|string',
+            'price'          => 'required|numeric|min:0.01',
+            'stock_quantity' => 'required|integer|min:0',
+            'category_id'    => 'nullable',
+            'image_url'      => 'nullable|url',
         ]);
 
-        $images = array_slice($validated['images'], 0, 8);
-        $coverImage = substr($images[0], 0, 255);
+        $rawCat = $request->input('category_id');
+        $categoryId = null;
+
+        if ($rawCat && is_string($rawCat) && Str::isUuid($rawCat)) {
+            $categoryId = $rawCat;
+        } else {
+            $cat = Category::first();
+            if (!$cat) {
+                $cat = Category::create([
+                    'name' => 'Geral',
+                    'slug' => 'geral',
+                ]);
+            }
+            $categoryId = $cat->id;
+        }
+
+        $name = $validated['title'];
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug . '-' . Str::lower(Str::random(6));
+
+        // Converte valor float em centavos inteiros (R$ 1949.99 => 194999)
+        $priceCents = (int) round(((float) $validated['price']) * 100);
 
         $product = Product::create([
-            'id'                   => (string) Str::uuid(),
-            'seller_id'            => $sellerProfile->id,
-            'category_id'          => $validated['category_id'],
-            'name'                 => $validated['name'],
-            'slug'                 => Str::slug($validated['name']) . '-' . Str::lower(Str::random(6)),
-            'description'          => $validated['description'] ?? '',
-            'price_cents'          => $validated['price_cents'],
-            'original_price_cents' => $validated['original_price_cents'] ?? null,
-            'stock_quantity'       => $validated['stock_quantity'],
-            'image_url'            => $coverImage,
-            'images'               => $images,
-            'weight_grams'         => $validated['weight_grams'] ?? 350,
-            'length_cm'            => $validated['length_cm'] ?? 30,
-            'width_cm'             => $validated['width_cm'] ?? 20,
-            'height_cm'            => $validated['height_cm'] ?? 15,
+            'seller_id'      => $seller->id,
+            'category_id'    => $categoryId,
+            'name'           => $name,
+            'slug'           => $slug,
+            'description'    => $validated['description'] ?? '',
+            'price_cents'    => $priceCents,
+            'stock_quantity' => $validated['stock_quantity'],
+            'image_url'      => $validated['image_url'] ?? null,
+            'weight_grams'   => 500,
+            'height_cm'      => 10,
+            'width_cm'       => 15,
+            'length_cm'      => 20,
         ]);
 
         return response()->json([
-            'message' => 'Produto publicado com sucesso!',
-            'product' => $product->load('category'),
+            'message' => 'Produto anunciado com sucesso!',
+            'product' => $product
         ], 201);
     }
 
-    public function update(Request $request, string $id): JsonResponse
+    public function update(Request $request, $id)
     {
         $user = $request->user();
-        $sellerProfile = DB::table('seller_profiles')->where('user_id', $user->id)->first();
+        $seller = SellerProfile::where('user_id', $user->id)->first();
 
-        $product = Product::where('id', $id)
-            ->where('seller_id', $sellerProfile ? $sellerProfile->id : null)
-            ->first();
-
-        if (! $product) {
-            return response()->json(['message' => 'Produto não encontrado.'], 404);
+        $query = Product::where('id', $id);
+        if ($user->role !== 'ADMIN') {
+            if (!$seller) return response()->json(['message' => 'Perfil de vendedor não localizado'], 404);
+            $query->where('seller_id', $seller->id);
         }
 
+        $product = $query->firstOrFail();
+
         $validated = $request->validate([
-            'name'                 => 'required|string|max:255',
-            'description'          => 'nullable|string',
-            'category_id'          => 'required|exists:categories,id',
-            'price_cents'          => 'required|integer|min:100',
-            'original_price_cents' => 'nullable|integer|min:100',
-            'stock_quantity'       => 'required|integer|min:0',
-            'images'               => 'required|array|min:3',
-            'images.*'             => 'required|string|url|max:500',
-            'weight_grams'         => 'nullable|integer|min:1',
-            'length_cm'            => 'nullable|integer|min:1',
-            'width_cm'             => 'nullable|integer|min:1',
-            'height_cm'            => 'nullable|integer|min:1',
+            'title'          => 'sometimes|string|max:255',
+            'description'    => 'nullable|string',
+            'price'          => 'sometimes|numeric|min:0.01',
+            'stock_quantity' => 'sometimes|integer|min:0',
+            'category_id'    => 'nullable',
+            'image_url'      => 'nullable|url',
         ]);
 
-        $images = array_slice($validated['images'], 0, 8);
+        $updateData = [];
 
-        $product->name = $validated['name'];
-        $product->description = $validated['description'] ?? '';
-        $product->category_id = $validated['category_id'];
-        $product->price_cents = $validated['price_cents'];
-        $product->original_price_cents = $validated['original_price_cents'] ?? null;
-        $product->stock_quantity = $validated['stock_quantity'];
-        $product->images = $images;
-        $product->image_url = substr($images[0], 0, 255);
-        $product->weight_grams = $validated['weight_grams'] ?? $product->weight_grams;
-        $product->length_cm = $validated['length_cm'] ?? $product->length_cm;
-        $product->width_cm = $validated['width_cm'] ?? $product->width_cm;
-        $product->height_cm = $validated['height_cm'] ?? $product->height_cm;
-        $product->save();
+        if (isset($validated['title'])) {
+            $updateData['name'] = $validated['title'];
+        }
+        if (isset($validated['description'])) {
+            $updateData['description'] = $validated['description'];
+        }
+        if (isset($validated['price'])) {
+            $updateData['price_cents'] = (int) round(((float) $validated['price']) * 100);
+        }
+        if (isset($validated['stock_quantity'])) {
+            $updateData['stock_quantity'] = $validated['stock_quantity'];
+        }
+        if (isset($validated['image_url'])) {
+            $updateData['image_url'] = $validated['image_url'];
+        }
+        if (isset($validated['category_id']) && is_string($validated['category_id']) && Str::isUuid($validated['category_id'])) {
+            $updateData['category_id'] = $validated['category_id'];
+        }
+
+        $product->update($updateData);
 
         return response()->json([
             'message' => 'Produto atualizado com sucesso!',
-            'product' => $product->load('category'),
+            'product' => $product
         ]);
     }
 
-    public function destroy(Request $request, string $id): JsonResponse
+    public function destroy(Request $request, $id)
     {
         $user = $request->user();
-        $sellerProfile = DB::table('seller_profiles')->where('user_id', $user->id)->first();
+        $seller = SellerProfile::where('user_id', $user->id)->first();
 
-        $product = Product::where('id', $id)
-            ->where('seller_id', $sellerProfile ? $sellerProfile->id : null)
-            ->first();
-
-        if (! $product) {
-            return response()->json(['message' => 'Produto não localizado.'], 404);
+        $query = Product::where('id', $id);
+        if ($user->role !== 'ADMIN') {
+            if (!$seller) return response()->json(['message' => 'Acesso negado'], 403);
+            $query->where('seller_id', $seller->id);
         }
 
+        $product = $query->firstOrFail();
         $product->delete();
 
-        return response()->json(['message' => 'Produto removido com sucesso.']);
+        return response()->json(['message' => 'Produto excluído com sucesso!']);
     }
 }

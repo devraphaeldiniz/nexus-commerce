@@ -1,66 +1,42 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-
 import StorefrontView from '../views/StorefrontView.vue'
+import ProductDetailView from '../views/ProductDetailView.vue'
+import OrdersView from '../views/OrdersView.vue'
+import SellerDashboardView from '../views/SellerDashboardView.vue'
 import LoginView from '../views/LoginView.vue'
 import ProfileView from '../views/ProfileView.vue'
-import SellerDashboard from '../components/SellerDashboard.vue'
-import LogisticsHub from '../components/LogisticsHub.vue'
-import DisputeCenter from '../components/DisputeCenter.vue'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
-  {
-    path: '/',
-    name: 'storefront',
-    component: StorefrontView,
-  },
-  {
-    path: '/login',
-    name: 'login',
-    component: LoginView,
-  },
-  {
-    path: '/profile',
-    name: 'profile',
-    component: ProfileView,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/seller',
-    name: 'seller',
-    component: SellerDashboard,
-    meta: { requiresAuth: true, roles: ['SELLER', 'ADMIN'] },
-  },
-  {
-    path: '/logistics',
-    name: 'logistics',
-    component: LogisticsHub,
-    meta: { requiresAuth: true, roles: ['LOGISTICS', 'ADMIN'] },
-  },
-  {
-    path: '/disputes',
-    name: 'disputes',
-    component: DisputeCenter,
+  { path: '/', component: StorefrontView },
+  { path: '/products/:id', component: ProductDetailView },
+  { path: '/login', component: LoginView },
+  { path: '/profile', component: ProfileView, meta: { requiresAuth: true } },
+  { path: '/orders', component: OrdersView, meta: { requiresAuth: true } },
+  { 
+    path: '/seller', 
+    component: SellerDashboardView,
+    meta: { requiresSeller: true }
   },
 ]
 
-const router = createRouter({
+export const router = createRouter({
   history: createWebHistory(),
   routes,
 })
 
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
-
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return next({ name: 'login', query: { redirect: to.fullPath } })
+  if (to.meta.requiresAuth && !auth.user) {
+    return next({ path: '/login', query: { redirect: to.fullPath } })
   }
-
-  if (to.meta.roles && !to.meta.roles.includes(auth.currentRole)) {
-    alert('Acesso negado: seu perfil não tem permissão para acessar esta área.')
-    return next({ name: 'storefront' })
+  if (to.meta.requiresSeller) {
+    const auth = useAuthStore()
+    if (!auth.user || (auth.user.role !== 'SELLER' && auth.user.role !== 'ADMIN')) {
+      alert('Acesso restrito: Esta área é exclusiva para vendedores homologados.')
+      return next('/')
+    }
   }
-
   next()
 })
 
