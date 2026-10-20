@@ -26,6 +26,7 @@ class CheckoutController extends Controller
             'shipping_state'        => 'nullable|string|max:2',
             'shipping_service'      => 'required|string|max:50',
             'shipping_cents'        => 'required|integer|min:0',
+            'idempotency_key'       => 'nullable|string|max:100',
             'payment_method'        => 'nullable|string',
             'items'                 => 'required|array|min:1',
             'items.*.product_id'    => 'required|string|uuid',
@@ -34,6 +35,17 @@ class CheckoutController extends Controller
 
         return DB::transaction(function () use ($validated, $request) {
             $user = $request->user();
+            $requestKey = $request->header('Idempotency-Key') ?: ($validated['idempotency_key'] ?? null);
+            if ($requestKey) {
+                $existing = Order::where('idempotency_key', $requestKey)
+                    ->where('user_id', $user->id)->first();
+                if ($existing) {
+                    return response()->json([
+                        'message' => 'Pedido já processado.', 'order_id' => $existing->id,
+                        'status' => $existing->status, 'total' => $existing->total_cents,
+                    ], 200);
+                }
+            }
             $subtotalCents = 0;
             $itemsToCreate = [];
 
@@ -83,8 +95,8 @@ class CheckoutController extends Controller
                 'user_id'             => $user ? $user->id : null,
                 'customer_email'      => $validated['customer_email'],
                 'total_cents'         => $totalCents,
-                'idempotency_key'     => (string) Str::uuid(),
-                'status'              => 'PAID',
+                'idempotency_key'     => $requestKey ?: (string) Str::uuid(),
+                'status'              => 'PENDING',
                 'shipping_zip_code'   => $cleanZip,
                 'shipping_service'    => $validated['shipping_service'],
                 'shipping_cost_cents' => $validated['shipping_cents'],

@@ -22,12 +22,17 @@ class User extends Authenticatable
         'email_verification_expires_at',
         'email_verified_at',
         'is_approved',
+        'otp_attempts', 'otp_last_sent_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
         'email_verification_code',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'api_token',
+        'cpf',
     ];
 
     protected function casts(): array
@@ -38,6 +43,11 @@ class User extends Authenticatable
             'api_token_expires_at' => 'datetime',
             'password' => 'hashed',
             'is_approved' => 'boolean',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'email_verification_code' => 'hashed',
+            'otp_last_sent_at' => 'datetime',
+            'otp_attempts' => 'integer',
         ];
     }
 

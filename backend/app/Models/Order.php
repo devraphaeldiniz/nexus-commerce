@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrderStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,9 @@ class Order extends Model
         'status',
         'delivered_at',
         'shipping_zip_code',
+        'shipping_address',
+        'shipping_city',
+        'shipping_state',
         'shipping_service',
         'shipping_cost_cents',
         'estimated_delivery_days',
@@ -31,6 +35,15 @@ class Order extends Model
         'paid_at',
     ];
 
+    protected $casts = [
+        'paid_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'shipped_at' => 'datetime',
+        'total_cents' => 'integer',
+        'shipping_cost_cents' => 'integer',
+        'status' => OrderStatus::class,
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -39,5 +52,10 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class, 'order_id');
+    }
+
+    public function paymentWebhookEvents(): HasMany
+    {
+        return $this->hasMany(PaymentWebhookEvent::class);
     }
 }

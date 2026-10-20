@@ -6,8 +6,9 @@ use App\Models\SellerProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\EmailVerificationOtpMail;
 use Illuminate\Support\Str;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -84,6 +85,8 @@ class AuthController extends Controller
         $user->update([
             'email_verification_code'       => $code,
             'email_verification_expires_at' => now()->addMinutes(15),
+            'otp_attempts'                  => 0,
+            'otp_last_sent_at'              => now(),
         ]);
 
         $this->sendOtpEmail($user->email, $code, 'Login Nexus');
@@ -104,7 +107,15 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || (string)$user->email_verification_code !== (string)$request->code || !$user->email_verification_expires_at || $user->email_verification_expires_at->isPast()) {
+        if (!$user || !$user->email_verification_expires_at || $user->email_verification_expires_at->isPast()) {
+            return response()->json(['message' => 'Código de verificação incorreto ou expirado'], 422);
+        }
+
+        if ((int) ($user->otp_attempts ?? 0) >= 5) {
+            return response()->json(['message' => 'Muitas tentativas. Solicite um novo código.'], 429);
+        }
+        if (! Hash::check((string) $request->code, (string) $user->email_verification_code)) {
+            $user->increment('otp_attempts');
             return response()->json(['message' => 'Código de verificação incorreto ou expirado'], 422);
         }
 
@@ -113,6 +124,7 @@ class AuthController extends Controller
         $user->update([
             'email_verification_code'       => null,
             'email_verification_expires_at' => null,
+            'otp_attempts'                 => 0,
             'email_verified_at'             => $user->email_verified_at ?? now(),
             'api_token'                     => hash('sha256', $token),
             'api_token_expires_at'          => now()->addDays(30),
@@ -133,10 +145,17 @@ class AuthController extends Controller
             return response()->json(['message' => 'Se o e-mail estiver cadastrado, um novo código será enviado.']);
         }
 
+        if ($user->otp_last_sent_at && $user->otp_last_sent_at->gt(now()->subMinute())) {
+            return response()->json(['message' => 'Aguarde um minuto antes de solicitar outro código.'], 429);
+        }
         $code = sprintf('%06d', random_int(100000, 999999));
         $user->update([
             'email_verification_code'       => $code,
             'email_verification_expires_at' => now()->addMinutes(15),
+            'otp_attempts'                  => 0,
+            'otp_last_sent_at'              => now(),
+            'otp_attempts'                  => 0,
+            'otp_last_sent_at'              => now(),
         ]);
 
         $this->sendOtpEmail($user->email, $code, 'Reenvio de Código');
@@ -150,41 +169,11 @@ class AuthController extends Controller
     {
         Log::info('Solicitação de OTP processada', ['context' => $actionContext]);
 
-        $apiKey = env('BREVO_API_KEY');
-        $senderEmail = 'fareusaloisio@gmail.com';
-
-        if (!$apiKey) {
-            Log::warning('BREVO_API_KEY não configurada.');
-            return;
-        }
-
         try {
-            $response = Http::withHeaders([
-                'api-key'      => $apiKey,
-                'Content-Type' => 'application/json',
-                'Accept'       => 'application/json',
-            ])->post('https://api.brevo.com/v3/smtp/email', [
-                'sender'      => ['name' => 'Nexus Commerce', 'email' => $senderEmail],
-                'to'          => [['email' => $recipient]],
-                'subject'     => "Nexus Commerce: Código de Acesso [{$code}]",
-                'htmlContent' => "
-                    <div style='font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; padding: 28px; border-radius: 12px; max-width: 480px;'>
-                        <h2 style='color: #818cf8; margin-bottom: 8px;'>Nexus Commerce</h2>
-                        <p style='color: #cbd5e1; font-size: 14px;'>Seu código de acesso para <strong>{$actionContext}</strong> é:</p>
-                        <div style='background: #1e293b; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0;'>
-                            <span style='font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38bdf8;'>{$code}</span>
-                        </div>
-                        <p style='color: #94a3b8; font-size: 12px;'>Este código é válido por 15 minutos.</p>
-                    </div>",
-            ]);
-
-            if ($response->failed()) {
-                Log::error('Falha no envio via Brevo: ' . $response->body());
-            } else {
-                Log::info('E-mail OTP enviado com sucesso via Brevo para: ' . $recipient);
-            }
+            Mail::to($recipient)->send(new EmailVerificationOtpMail($recipient, $code));
+            Log::info('E-mail OTP enviado via mailer configurado', ['recipient' => $recipient]);
         } catch (\Throwable $e) {
-            Log::error('Exceção ao disparar via Brevo: ' . $e->getMessage());
+            Log::error('Falha no envio do e-mail OTP: '.$e->getMessage());
         }
     }
 }

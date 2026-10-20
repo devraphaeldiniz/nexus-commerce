@@ -23,9 +23,14 @@ class ProductController extends Controller
             });
         }
 
-        $products = $query->latest()->get();
+        // Keep the public endpoint backwards compatible while allowing the storefront
+        // to request small pages instead of loading the whole catalogue.
+        if ($request->hasAny(['page', 'per_page'])) {
+            $perPage = min(max((int) $request->input('per_page', 24), 1), 100);
+            return response()->json($query->latest()->paginate($perPage));
+        }
 
-        return response()->json($products);
+        return response()->json($query->latest()->get());
     }
 
     public function show($id)

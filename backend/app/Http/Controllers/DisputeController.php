@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderDispute;
+use App\Enums\OrderStatus;
+use App\Services\OrderTransitionService;
 use App\Models\DisputeMessage;
 use App\Models\SellerWallet;
 use App\Models\WalletTransaction;
@@ -43,7 +45,7 @@ class DisputeController extends Controller
         }
 
         $dispute = DB::transaction(function () use ($order, $sellerId, $validated) {
-            $order->update(['status' => 'DISPUTED']);
+            app(OrderTransitionService::class)->transition($order, OrderStatus::DISPUTED);
 
             $dispute = OrderDispute::create([
                 'order_id'              => $order->id,
@@ -134,7 +136,7 @@ class DisputeController extends Controller
                     'resolved_at'      => now(),
                 ]);
 
-                $dispute->order->update(['status' => 'CANCELED']);
+                app(OrderTransitionService::class)->transition($dispute->order, OrderStatus::CANCELED);
 
                 // Se o valor ainda estiver em custódia (escrow), estorna da custódia; senão debita do disponível
                 if ($wallet) {
@@ -160,7 +162,7 @@ class DisputeController extends Controller
                     'resolved_at'      => now(),
                 ]);
 
-                $dispute->order->update(['status' => 'DELIVERED']);
+                app(OrderTransitionService::class)->transition($dispute->order, OrderStatus::DELIVERED);
 
                 if ($wallet && $wallet->balance_escrow_cents >= $netSellerCents) {
                     $wallet->decrement('balance_escrow_cents', $netSellerCents);

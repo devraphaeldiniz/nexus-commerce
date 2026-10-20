@@ -9,7 +9,7 @@ class OrderPolicy
 {
     public function view(User $user, Order $order): bool
     {
-        return $user->role === 'ADMIN' || $order->user_id === $user->id || $order->customer_email === $user->email;
+        return $user->role === 'ADMIN' || $order->user_id === $user->id;
     }
 
     public function deliver(User $user, Order $order): bool

@@ -42,6 +42,7 @@ const selectedShipping = ref(null)
 const isCheckingOut = ref(false)
 const checkoutError = ref('')
 const paymentMethod = ref('PIX')
+const createdOrderId = ref(null)
 
 const formatMoney = (cents) => {
   return ((cents || 0) / 100).toLocaleString('pt-BR', {
@@ -139,7 +140,13 @@ watch(cepInput, (newVal) => {
 const handleCheckout = async () => {
   if (cart.items.length === 0) return
 
-  if (!selectedShipping.value) {
+  if (!auth.user) {
+    checkoutError.value = 'Faça login para finalizar a compra.'
+    router.push('/login')
+    return
+  }
+
+  if (cepInput.value.replace(/\D/g, '').length !== 8 || !selectedShipping.value) {
     checkoutError.value = 'Informe seu CEP e selecione uma opção de frete.'
     return
   }
@@ -174,11 +181,12 @@ const handleCheckout = async () => {
       }))
     }
 
-    await axios.post('/checkout', payload, { withCredentials: true })
-    
+    const { data } = await axios.post('/checkout', payload, { withCredentials: true })
+    // Preserve the server-assigned order id for payment/reconciliation flows.
+    createdOrderId.value = data.order_id
     cart.clearCart()
     cart.isOpen = false
-    router.push('/orders')
+    router.push({ path: '/orders', query: { order_id: String(data.order_id) } })
   } catch (err) {
     if (err.response?.data?.errors) {
       const firstError = Object.values(err.response.data.errors)[0]
@@ -193,13 +201,13 @@ const handleCheckout = async () => {
 </script>
 
 <template>
-  <div v-if="cart.isOpen" class="fixed inset-0 z-50 overflow-hidden">
+  <div v-if="cart.isOpen" class="fixed inset-0 z-[100] overflow-hidden pointer-events-auto">
     <div 
-      class="absolute inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
+      class="absolute inset-0 z-0 bg-black/70 backdrop-blur-xs transition-opacity pointer-events-auto"
       @click="cart.isOpen = false"
     />
 
-    <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+    <div class="fixed inset-y-0 right-0 z-10 max-w-full flex pl-10 pointer-events-auto">
       <div class="w-screen max-w-md bg-neutral-900 border-l border-neutral-800 text-white flex flex-col shadow-2xl">
         
         <!-- Header -->
@@ -211,7 +219,7 @@ const handleCheckout = async () => {
               {{ cart.itemCount }}
             </span>
           </div>
-          <button 
+          <button type="button" 
             @click="cart.isOpen = false"
             class="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition cursor-pointer"
           >
@@ -234,7 +242,12 @@ const handleCheckout = async () => {
           <div 
             v-for="item in cart.items" 
             :key="item.id"
-            class="bg-neutral-950 border border-neutral-800/80 rounded-2xl p-3 flex gap-3 items-center"
+            class="bg-neutral-950 border border-neutral-800/80 rounded-2xl p-3 flex gap-3 items-center cursor-pointer hover:border-indigo-500/60 transition"
+             role="link"
+             tabindex="0"
+             @click="router.push(`/products/${item.id}`)"
+             @keydown.enter="router.push(`/products/${item.id}`)"
+             @keydown.space.prevent="router.push(`/products/${item.id}`)"
           >
             <img 
               :src="item.image_url" 
@@ -247,15 +260,15 @@ const handleCheckout = async () => {
               <p class="text-xs font-black text-indigo-400 font-mono">{{ formatMoney(item.price_cents) }}</p>
 
               <div class="flex items-center gap-2 pt-1">
-                <button 
-                  @click="cart.decrementQuantity(item.id)"
+                <button type="button" 
+                  @click.stop="cart.decrementQuantity(item.id)"
                   class="w-6 h-6 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300 hover:text-white transition cursor-pointer"
                 >
                   <Minus class="w-3 h-3" />
                 </button>
                 <span class="text-xs font-mono font-bold text-white px-1">{{ item.quantity }}</span>
-                <button 
-                  @click="cart.incrementQuantity(item.id)"
+                <button type="button" 
+                  @click.stop="cart.incrementQuantity(item.id)"
                   class="w-6 h-6 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300 hover:text-white transition cursor-pointer"
                 >
                   <Plus class="w-3 h-3" />
@@ -263,8 +276,8 @@ const handleCheckout = async () => {
               </div>
             </div>
 
-            <button 
-              @click="cart.removeItem(item.id)"
+            <button type="button" 
+              @click.stop="cart.removeItem(item.id)"
               class="text-neutral-500 hover:text-rose-400 p-2 transition shrink-0 cursor-pointer"
             >
               <Trash2 class="w-4 h-4" />
@@ -273,7 +286,7 @@ const handleCheckout = async () => {
         </div>
 
         <!-- Entrega & Fechamento -->
-        <div v-if="cart.items.length > 0" class="p-5 border-t border-neutral-800 bg-neutral-950 space-y-4 max-h-[50vh] overflow-y-auto">
+        <div v-if="cart.items.length > 0" class="relative z-10 flex-shrink-0 p-5 border-t border-neutral-800 bg-neutral-950 space-y-4 max-h-[65vh] overflow-y-auto overscroll-contain scroll-smooth">
           
           <!-- CEP e Busca Automática -->
           <div class="space-y-2">
@@ -287,14 +300,18 @@ const handleCheckout = async () => {
 
             <input 
               v-model="cepInput"
+              id="shipping-cep"
               type="text" 
+              inputmode="numeric"
+              autocomplete="postal-code"
               maxlength="9"
+              aria-label="CEP de entrega"
               placeholder="Digite o CEP (ex: 33200-000)"
               class="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-neutral-500 focus:border-indigo-500 focus:outline-hidden transition"
             />
 
             <!-- Dados do Endereço preenchidos automaticamente -->
-            <div v-if="cityInput" class="space-y-2 pt-1">
+            <div v-if="cepInput.replace(/\D/g, '').length === 8 && (cityInput || selectedShipping)" class="space-y-2 pt-1">
               <div class="bg-neutral-900/80 border border-neutral-800 rounded-xl p-2.5 text-[11px] text-neutral-300 flex items-start gap-2">
                 <MapPin class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div class="leading-relaxed">
@@ -312,7 +329,12 @@ const handleCheckout = async () => {
                   <input 
                     ref="numberInputRef"
                     v-model="numberInput"
+                    id="shipping-number"
                     type="text" 
+                    inputmode="numeric"
+                    autocomplete="address-line2"
+                    required
+                    aria-required="true"
                     placeholder="Ex: 120"
                     class="w-full bg-neutral-900 border border-neutral-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-hidden"
                   />
@@ -323,7 +345,9 @@ const handleCheckout = async () => {
                   </label>
                   <input 
                     v-model="complementInput"
+                    id="shipping-complement"
                     type="text" 
+                    autocomplete="address-line2"
                     placeholder="Apto, Bloco..."
                     class="w-full bg-neutral-900 border border-neutral-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-hidden"
                   />
@@ -363,9 +387,8 @@ const handleCheckout = async () => {
           <div class="space-y-1.5">
             <span class="text-[11px] font-semibold text-neutral-400 block">Forma de Pagamento</span>
             <div class="grid grid-cols-2 gap-2">
-              <button 
+              <button type="button" 
                 @click="paymentMethod = 'PIX'"
-                type="button"
                 class="p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                 :class="paymentMethod === 'PIX' 
                   ? 'bg-emerald-600/10 border-emerald-500/60 text-emerald-400' 
@@ -375,9 +398,8 @@ const handleCheckout = async () => {
                 <span>PIX Instantâneo</span>
               </button>
 
-              <button 
+              <button type="button" 
                 @click="paymentMethod = 'CREDIT_CARD'"
-                type="button"
                 class="p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                 :class="paymentMethod === 'CREDIT_CARD' 
                   ? 'bg-indigo-600/10 border-indigo-500/60 text-indigo-400' 
@@ -411,7 +433,7 @@ const handleCheckout = async () => {
           </p>
 
           <!-- Botão de Finalizar -->
-          <button 
+          <button type="button" 
             @click="handleCheckout"
             :disabled="isCheckingOut || !selectedShipping"
             class="w-full py-3 px-4 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 cursor-pointer"

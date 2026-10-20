@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
+import { useRouter } from 'vue-router'
 import { 
   User, 
   ShieldCheck, 
@@ -18,7 +19,15 @@ import {
   Check, 
   X,
   Phone,
-  Calendar
+  Calendar,
+  Package,
+  MapPin,
+  Headphones,
+  Star,
+  Heart,
+  WalletCards,
+  ChevronRight,
+  RefreshCw
 } from 'lucide-vue-next'
 
 const auth = useAuthStore()
@@ -38,6 +47,7 @@ const savedCards = ref([])
 const isAddingCard = ref(false)
 const newCard = ref({
   card_holder_name: '',
+  gateway_card_token: '',
   card_number: '',
   exp_month: '',
   exp_year: '',
@@ -57,11 +67,31 @@ const copiedSecret = ref(false)
 // Feedbacks
 const feedbackSuccess = ref('')
 const feedbackError = ref('')
+const isLoadingProfile = ref(false)
+const orders = ref([])
+const isLoadingOrders = ref(false)
+const ordersError = ref('')
+
+const loadOrders = async () => {
+  isLoadingOrders.value = true
+  ordersError.value = ''
+  try {
+    const { data } = await axios.get('/customer/orders', { withCredentials: true })
+    orders.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    ordersError.value = err.response?.data?.message || 'Não foi possível carregar seus pedidos.'
+  } finally { isLoadingOrders.value = false }
+}
+
+const formatMoney = (cents) => ((cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const formatDate = (date) => date ? new Date(date).toLocaleDateString('pt-BR') : '—'
+const statusLabel = (status) => ({ PAID: 'Pagamento aprovado', IN_PREPARATION: 'Em preparação', SHIPPED: 'A caminho', DELIVERED: 'Entregue', PENDING: 'Aguardando pagamento' }[status] || status || 'Em processamento')
+const statusClass = (status) => status === 'DELIVERED' ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : (status === 'SHIPPED' ? 'text-sky-300 bg-sky-500/10 border-sky-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20')
 
 const loadProfileData = async () => {
   try {
-    const { data } = await axios.get('/auth/me')
-    auth.user = data
+    const { data } = await axios.get('/auth/me', { withCredentials: true })
+    auth.setAuth(data)
     profileName.value = data.name
     savedCards.value = data.saved_cards || []
   } catch (err) {
@@ -88,7 +118,7 @@ const handleUpdateProfile = async () => {
       new_password_confirmation: newPasswordConfirm.value || null,
     })
 
-    auth.user = data.user
+    auth.setAuth(data.user)
     feedbackSuccess.value = 'Perfil atualizado com sucesso!'
     currentPassword.value = ''
     newPassword.value = ''
@@ -110,7 +140,8 @@ const handleStoreCard = async () => {
     savedCards.value.unshift(data.card)
     feedbackSuccess.value = 'Cartão salvo com sucesso para compras futuras!'
     isAddingCard.value = false
-    newCard.value = { card_holder_name: '', card_number: '', exp_month: '', exp_year: '', card_brand: 'MASTERCARD' }
+    newCard.value = { card_holder_name: '', gateway_card_token: '',
+  card_number: '', exp_month: '', exp_year: '', card_brand: 'MASTERCARD' }
   } catch (err) {
     feedbackError.value = err.response?.data?.message || 'Erro ao cadastrar cartão.'
   } finally {
@@ -151,7 +182,7 @@ const confirmEnable2fa = async () => {
     const { data } = await axios.post('/profile/2fa/enable', {
       code: twoFactorConfirmCode.value,
     })
-    auth.user.two_factor_enabled = true
+    auth.setAuth({ ...auth.user, two_factor_enabled: true })
     feedbackSuccess.value = data.message
     twoFactorSetupData.value = null
     twoFactorConfirmCode.value = ''
@@ -171,7 +202,7 @@ const handleDisable2fa = async () => {
     const { data } = await axios.post('/profile/2fa/disable', {
       password: disable2faPassword.value,
     })
-    auth.user.two_factor_enabled = false
+    auth.setAuth({ ...auth.user, two_factor_enabled: false })
     feedbackSuccess.value = data.message
     disable2faPassword.value = ''
   } catch (err) {
@@ -189,11 +220,15 @@ const copySecret = (text) => {
 
 onMounted(() => {
   loadProfileData()
+  loadOrders()
 })
 </script>
 
 <template>
   <div class="max-w-4xl mx-auto space-y-6">
+    <router-link to="/" class="inline-flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition">
+      <HomeIcon class="w-4 h-4" /> Voltar para a Home
+    </router-link>
     <!-- Header do Perfil -->
     <div class="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex items-center gap-4">
@@ -223,13 +258,51 @@ onMounted(() => {
       <div class="flex items-center gap-2 bg-neutral-950/60 border border-neutral-800 px-3.5 py-2 rounded-2xl">
         <div 
           class="w-2.5 h-2.5 rounded-full" 
-          :class="auth.user?.email_verified ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"
+          :class="(auth.user?.is_email_verified || auth.user?.email_verified_at || auth.user?.email_verified) ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"
         />
         <span class="text-xs font-semibold text-neutral-300">
-          {{ auth.user?.email_verified ? 'E-mail Verificado' : 'E-mail Pendente de Confirmação' }}
+          {{ (auth.user?.is_email_verified || auth.user?.email_verified_at || auth.user?.email_verified) ? 'E-mail Verificado' : 'E-mail Pendente de Confirmação' }}
         </span>
       </div>
     </div>
+
+    <!-- Central de compras: atalhos e visão real do histórico -->
+    <section aria-labelledby="account-shortcuts" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h1 id="account-shortcuts" class="text-lg font-black text-white">Olá, {{ auth.user?.name?.split(' ')[0] || 'cliente' }}!</h1>
+        <span class="text-xs text-neutral-500">Sua central de compras</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        <router-link v-for="item in [
+          { label: 'Pedidos', icon: Package, to: '/orders' },
+          { label: 'Meus dados', icon: User, to: '#data' },
+          { label: 'Endereço', icon: MapPin, to: '#data' },
+          { label: 'Carteira', icon: WalletCards, to: '#cards' },
+          { label: 'Atendimento', icon: Headphones, to: '#support' },
+          { label: 'Avaliações', icon: Star, to: '#reviews' },
+          { label: 'Favoritos', icon: Heart, to: '#favorites' }
+        ]" :key="item.label" :to="item.to" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 text-center hover:border-indigo-500/60 hover:bg-neutral-800 transition focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <component :is="item.icon" class="w-5 h-5 mx-auto mb-1.5 text-indigo-400" aria-hidden="true" />
+          <span class="text-[11px] font-bold text-neutral-300">{{ item.label }}</span>
+        </router-link>
+      </div>
+    </section>
+
+    <section aria-labelledby="recent-orders" class="bg-neutral-900 border border-neutral-800 rounded-3xl p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div><h2 id="recent-orders" class="text-sm font-black text-white">Resumo dos pedidos</h2><p class="text-xs text-neutral-500">Acompanhe suas compras mais recentes</p></div>
+        <div class="flex items-center gap-2"><button @click="loadOrders" aria-label="Atualizar pedidos" class="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800"><RefreshCw class="w-4 h-4" /></button><router-link to="/orders" class="text-xs font-bold text-indigo-400 hover:text-indigo-300">Ver todos <ChevronRight class="inline w-3 h-3" /></router-link></div>
+      </div>
+      <p v-if="isLoadingOrders" class="text-xs text-neutral-500 py-4">Carregando pedidos...</p>
+      <p v-else-if="ordersError" class="text-xs text-rose-300">{{ ordersError }}</p>
+      <p v-else-if="!orders.length" class="text-xs text-neutral-500 py-4">Você ainda não realizou pedidos.</p>
+      <div v-else class="space-y-2">
+        <router-link v-for="order in orders.slice(0, 3)" :key="order.id" to="/orders" class="flex items-center justify-between gap-3 p-3 rounded-2xl bg-neutral-950 border border-neutral-800 hover:border-neutral-700 transition">
+          <div class="flex items-center gap-3"><div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400"><Package class="w-4 h-4" /></div><div><p class="text-xs font-bold text-white">Pedido #{{ order.id }}</p><p class="text-[11px] text-neutral-500">{{ formatDate(order.created_at) }} · {{ order.items?.length || 0 }} item(ns)</p></div></div>
+          <div class="text-right"><span class="text-[10px] px-2 py-1 rounded-lg border" :class="statusClass(order.status)">{{ statusLabel(order.status) }}</span><p class="text-xs font-bold text-white mt-1">{{ formatMoney(order.total_cents) }}</p></div>
+        </router-link>
+      </div>
+    </section>
 
     <!-- Navegação por Abas -->
     <div class="flex p-1.5 bg-neutral-900 border border-neutral-800 rounded-2xl gap-1">
@@ -300,9 +373,10 @@ onMounted(() => {
           <div class="space-y-1">
             <label class="font-semibold text-neutral-400">Documento CPF</label>
             <input 
-              :value="auth.user?.customer_profile?.cpf || 'Não informado'" 
+              value="Documento cadastrado"
               readonly 
-              class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-neutral-400 font-mono cursor-not-allowed"
+              aria-label="Documento cadastrado"
+              class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-neutral-400 cursor-not-allowed"
             />
           </div>
         </div>

@@ -50,6 +50,15 @@ class AsaasService
         return $createRes->json('id');
     }
 
+    public static function getPayment(string $paymentId): array
+    {
+        $response = self::client()->get('/payments/' . rawurlencode($paymentId));
+        if (! $response->successful()) {
+            throw new \RuntimeException('Não foi possível reconciliar o pagamento no Asaas.');
+        }
+        return $response->json();
+    }
+
     /**
      * Gera Cobrança via PIX e obtém o QR Code
      */

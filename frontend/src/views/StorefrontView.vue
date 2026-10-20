@@ -1,272 +1,92 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useCartStore } from '../stores/cart'
 import { useAuthStore } from '../stores/auth'
 import AuthModal from '../components/AuthModal.vue'
 import CartDrawer from '../components/CartDrawer.vue'
-import { 
-  Search, 
-  ShoppingBag, 
-  User, 
-  Store, 
-  LogOut, 
-  ShieldCheck, 
-  Sparkles 
-} from 'lucide-vue-next'
+import { Search, ShoppingBag, User, Store, LogOut, Sparkles, Truck, ShieldCheck } from 'lucide-vue-next'
 
 const router = useRouter()
 const cart = useCartStore()
 const auth = useAuthStore()
-
 const isAuthOpen = ref(false)
-const isCartOpen = ref(false)
-
 const products = ref([])
 const categories = ref([])
 const selectedCategory = ref(null)
 const searchQuery = ref('')
 const isLoading = ref(true)
+const isLoadingMore = ref(false)
+const hasMore = ref(true)
+const page = ref(1)
+const pageSize = 24
+let requestId = 0
 
-const loadData = async () => {
-  isLoading.value = true
+const loadData = async (reset = true) => {
+  const id = ++requestId
+  if (reset) { page.value = 1; hasMore.value = true; isLoading.value = true }
+  else isLoadingMore.value = true
   try {
-    const [productsRes, categoriesRes] = await Promise.all([
-      axios.get('/products'),
-      axios.get('/categories')
-    ])
-
-    const rawProducts = productsRes.data?.data || productsRes.data
-    products.value = Array.isArray(rawProducts) ? rawProducts : []
-
-    const rawCategories = categoriesRes.data?.data || categoriesRes.data
-    categories.value = Array.isArray(rawCategories) ? rawCategories : []
+    const params = { page: page.value, per_page: pageSize }
+    if (selectedCategory.value) params.category_id = selectedCategory.value
+    if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
+    const requests = [axios.get('/products', { params })]
+    if (reset) requests.push(axios.get('/categories'))
+    const [productsRes, categoriesRes] = await Promise.all(requests)
+    if (id !== requestId) return
+    const payload = productsRes.data
+    const items = Array.isArray(payload) ? payload : (payload.data || [])
+    products.value = reset ? items : [...products.value, ...items]
+    hasMore.value = payload?.next_page_url != null || (payload?.current_page < payload?.last_page)
+    if (reset && categoriesRes) categories.value = categoriesRes.data?.data || categoriesRes.data || []
   } catch (err) {
+    if (reset) products.value = []
     console.error('Erro ao carregar dados da vitrine:', err)
-    products.value = []
-    categories.value = []
-  } finally {
-    isLoading.value = false
-  }
+  } finally { isLoading.value = false; isLoadingMore.value = false }
 }
-
-const filteredProducts = computed(() => {
-  if (!Array.isArray(products.value)) return []
-
-  return products.value.filter(p => {
-    const matchesCategory = !selectedCategory.value || p.category_id === selectedCategory.value
-    const matchesSearch = !searchQuery.value || (p.name && p.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
-    return matchesCategory && matchesSearch
-  })
-})
-
-const formatMoney = (cents) => {
-  return ((cents || 0) / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  })
-}
-
-const handleLogout = () => {
-  auth.logout()
-  router.push('/')
-}
-
+const loadMore = async () => { if (!isLoadingMore.value && hasMore.value) { page.value++; await loadData(false) } }
+const filteredProducts = computed(() => products.value)
+let searchTimer
+watch([searchQuery, selectedCategory], () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadData(), 250) })
+const formatMoney = cents => ((cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const handleLogout = () => { auth.logout(); router.push('/') }
 onMounted(() => {
   loadData()
+  const observer = new IntersectionObserver(entries => { if (entries[0].isIntersecting) loadMore() }, { rootMargin: '500px' })
+  nextTick(() => { const sentinel = document.querySelector('.catalog-sentinel'); if (sentinel) observer.observe(sentinel) })
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-950 text-white selection:bg-indigo-500 selection:text-white">
-    <!-- NAVBAR SUPERIOR -->
-    <header class="sticky top-0 z-40 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-800/80">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        
-        <!-- Logo -->
-        <div class="flex items-center gap-3 cursor-pointer" @click="selectedCategory = null; searchQuery = ''">
-          <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-600/10">
-            <Sparkles class="w-5 h-5" />
-          </div>
-          <div class="flex flex-col">
-            <span class="text-base font-black tracking-wider uppercase font-mono bg-gradient-to-r from-white via-neutral-200 to-indigo-400 bg-clip-text text-transparent">
-              Nexus Commerce
-            </span>
-            <span class="text-[10px] text-neutral-400 -mt-1 font-mono">Next-Gen Marketplace</span>
-          </div>
+  <div class="storefront min-h-screen text-slate-800">
+    <header class="store-header sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center gap-5">
+        <button class="brand shrink-0" @click="selectedCategory = null; searchQuery = ''" aria-label="Ir para início">
+          <span class="brand-mark"><Sparkles class="w-5 h-5" /></span><span><strong>Nexus</strong><small>commerce</small></span>
+        </button>
+        <div class="search-box flex-1 max-w-2xl hidden sm:block"><Search class="w-5 h-5" /><input v-model="searchQuery" placeholder="O que você está procurando?" /></div>
+        <div class="ml-auto flex items-center gap-2">
+          <button v-if="auth.user && (auth.user.role === 'SELLER' || auth.user.role === 'ADMIN')" @click="router.push('/seller')" class="header-action hidden lg:flex"><Store class="w-4 h-4" /> Painel</button>
+          <button @click="cart.openCart" class="header-icon relative" aria-label="Abrir carrinho"><ShoppingBag class="w-5 h-5" /><b v-if="cart.itemCount">{{ cart.itemCount }}</b></button>
+          <button v-if="auth.user" @click="router.push('/profile')" class="user-action hidden md:flex"><User class="w-4 h-4" /> {{ auth.user.name }}</button>
+          <button v-else @click="isAuthOpen = true" class="login-button"><User class="w-4 h-4" /> Entrar</button>
+          <button v-if="auth.user" @click="handleLogout" class="header-icon hidden sm:flex" title="Sair"><LogOut class="w-4 h-4" /></button>
         </div>
-
-        <!-- Ações do Topo -->
-        <div class="flex items-center gap-3">
-          <!-- Botão Portal Seller (se for SELLER ou ADMIN) -->
-          <button 
-            v-if="auth.user && (auth.user.role === 'SELLER' || auth.user.role === 'ADMIN')"
-            @click="router.push('/seller')"
-            class="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600/15 border border-indigo-500/30 text-indigo-300 text-xs font-bold hover:bg-indigo-600/25 transition cursor-pointer"
-          >
-            <Store class="w-4 h-4 text-indigo-400" />
-            <span>Painel Seller</span>
-          </button>
-
-          <!-- Carrinho -->
-          <button 
-            @click="isCartOpen = true"
-            class="relative p-2.5 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 hover:text-white transition cursor-pointer"
-            title="Abrir Carrinho"
-          >
-            <ShoppingBag class="w-4 h-4" />
-            <span 
-              v-if="cart.itemCount > 0"
-              class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center border-2 border-neutral-950"
-            >
-              {{ cart.itemCount }}
-            </span>
-          </button>
-
-          <!-- Bloco do Usuário (Logado ou Deslogado) -->
-          <template v-if="auth.user">
-            <div class="flex items-center gap-2 pl-2 border-l border-neutral-800">
-              <div class="flex flex-col text-right hidden md:block">
-                <span class="text-xs font-bold text-white">{{ auth.user.name }}</span>
-                <span class="text-[10px] font-mono text-indigo-400 font-bold uppercase">{{ auth.user.role }}</span>
-              </div>
-              <button 
-                @click="handleLogout"
-                class="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-rose-900 hover:text-rose-400 text-neutral-400 transition cursor-pointer"
-                title="Sair da Conta"
-              >
-                <LogOut class="w-4 h-4" />
-              </button>
-            </div>
-          </template>
-
-          <template v-else>
-            <button 
-              @click="isAuthOpen = true"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-lg shadow-indigo-600/20 cursor-pointer"
-            >
-              <User class="w-4 h-4" />
-              <span>Entrar / Cadastrar</span>
-            </button>
-          </template>
-        </div>
-
       </div>
+      <div class="mobile-search sm:hidden px-4 pb-3"><div class="search-box"><Search class="w-4 h-4" /><input v-model="searchQuery" placeholder="Buscar produtos" /></div></div>
     </header>
 
-    <!-- CORPO PRINCIPAL -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      
-      <!-- Pesquisa e Filtros -->
-      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div class="relative w-full md:w-96">
-          <Search class="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Buscar produtos, periféricos, hardware..." 
-            class="w-full bg-neutral-900 border border-neutral-800 focus:border-indigo-500 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-hidden transition"
-          />
-        </div>
-
-        <div class="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 scrollbar-none">
-          <button 
-            @click="selectedCategory = null" 
-            class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer"
-            :class="!selectedCategory ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white'"
-          >
-            Todos
-          </button>
-
-          <button 
-            v-for="cat in categories" 
-            :key="cat.id" 
-            @click="selectedCategory = cat.id" 
-            class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer"
-            :class="selectedCategory === cat.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white'"
-          >
-            {{ cat.name }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Loading -->
-      <div v-if="isLoading" class="text-center py-20 text-xs text-neutral-500">
-        Carregando vitrine...
-      </div>
-
-      <!-- Vitrine Vazia -->
-      <div v-else-if="filteredProducts.length === 0" class="text-center py-20 bg-neutral-900/40 border border-neutral-800 rounded-3xl p-8 space-y-3">
-        <ShoppingBag class="w-12 h-12 text-neutral-600 mx-auto stroke-1" />
-        <h3 class="text-sm font-bold text-white">Nenhum produto anunciado</h3>
-        <p class="text-xs text-neutral-400">Cadastre anúncios pelo Portal Seller para publicá-los na loja.</p>
-      </div>
-
-      <!-- Lista de Produtos -->
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        <div 
-          v-for="product in filteredProducts" 
-          :key="product.id" 
-          class="group bg-neutral-900 border border-neutral-800 hover:border-indigo-500/40 rounded-3xl p-4 flex flex-col justify-between space-y-4 transition duration-200 shadow-md cursor-pointer"
-          @click="router.push(`/products/${product.id}`)"
-        >
-          <div class="space-y-3">
-            <!-- Imagem com Desconto -->
-            <div class="relative w-full aspect-square rounded-2xl overflow-hidden bg-neutral-950 border border-neutral-800/80">
-              <img 
-                :src="(product.images && product.images[0]) || product.image_url" 
-                :alt="product.name" 
-                class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-              />
-              
-              <span 
-                v-if="product.original_price_cents && product.original_price_cents > product.price_cents" 
-                class="absolute top-2.5 left-2.5 bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider shadow-md"
-              >
-                -{{ Math.round(((product.original_price_cents - product.price_cents) / product.original_price_cents) * 100) }}% OFF
-              </span>
-            </div>
-
-            <div class="space-y-1">
-              <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider font-mono">
-                {{ product.category?.name || 'Nexus' }}
-              </span>
-              <h3 class="text-sm font-bold text-white line-clamp-1 group-hover:text-indigo-300 transition" :title="product.name">
-                {{ product.name }}
-              </h3>
-              <p class="text-[11px] text-neutral-400 line-clamp-2 leading-relaxed">
-                {{ product.description || 'Produto oficial com garantia e envio imediato.' }}
-              </p>
-            </div>
-          </div>
-
-          <div class="space-y-3 pt-2 border-t border-neutral-800/80" @click.stop>
-            <div class="flex items-baseline gap-2">
-              <span class="text-lg font-black text-white font-mono">{{ formatMoney(product.price_cents) }}</span>
-              <span 
-                v-if="product.original_price_cents && product.original_price_cents > product.price_cents" 
-                class="text-xs text-neutral-500 line-through font-mono"
-              >
-                {{ formatMoney(product.original_price_cents) }}
-              </span>
-            </div>
-
-            <button 
-              @click.stop="cart.addItem(product)" 
-              class="w-full bg-neutral-950 hover:bg-indigo-600 border border-neutral-800 hover:border-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer group-hover:bg-indigo-600"
-            >
-              <ShoppingBag class="w-3.5 h-3.5" />
-              <span>Adicionar ao Carrinho</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-    </main>
-
-    <!-- Modais Globais -->
-    <AuthModal :isOpen="isAuthOpen" @close="isAuthOpen = false" />
-    <CartDrawer :isOpen="isCartOpen" @close="isCartOpen = false" />
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <nav class="category-row" aria-label="Categorias"><button :class="{ active: !selectedCategory }" @click="selectedCategory = null">Todos</button><button v-for="cat in categories" :key="cat.id" :class="{ active: selectedCategory === cat.id }" @click="selectedCategory = cat.id">{{ cat.name }}</button></nav>
+      <section class="hero-banner"><div><span class="eyebrow">NOVIDADES NA NEXUS</span><h1>Do seu jeito.<br><em>Do seu mundo.</em></h1><p>Encontre produtos incríveis, preços especiais e entrega segura para todo o Brasil.</p><button @click="searchQuery = ''" class="hero-button">Ver ofertas <span>→</span></button></div><div class="hero-art"><ShoppingBag class="w-28 h-28" /></div></section>
+      <div class="benefits"><div><Truck /><span><b>Entrega para todo Brasil</b><small>Rápida e segura</small></span></div><div><ShieldCheck /><span><b>Compra protegida</b><small>Seus dados sempre seguros</small></span></div><div><Sparkles /><span><b>Produtos selecionados</b><small>Qualidade que você confia</small></span></div></div>
+      <div class="section-heading"><div><span class="eyebrow">ESCOLHAS PARA VOCÊ</span><h2>Produtos em destaque</h2></div><span class="result-count">{{ filteredProducts.length }} produtos</span></div>
+      <div v-if="isLoading" class="product-grid"><div v-for="n in 8" :key="n" class="product-card skeleton-card"><div class="product-image skeleton"></div><div class="product-info"><div class="skeleton line"></div><div class="skeleton line short"></div></div></div></div>
+      <div v-else-if="!filteredProducts.length" class="empty-state"><ShoppingBag class="w-10 h-10 mx-auto mb-3" /><b>Nenhum produto encontrado</b><p>Tente buscar por outro termo ou categoria.</p></div>
+      <div v-else class="product-grid"><article v-for="product in filteredProducts" :key="product.id" class="product-card" @click="router.push(`/products/${product.id}`)"><div class="product-image"><img loading="lazy" :src="(product.images && product.images[0]) || product.image_url" :alt="product.name" @error="$event.target.style.display='none'" /><span v-if="product.original_price_cents > product.price_cents" class="discount">OFERTA</span></div><div class="product-info"><small>{{ product.category?.name || 'Nexus' }}</small><h3>{{ product.name }}</h3><p>{{ product.description || 'Produto oficial com garantia e envio imediato.' }}</p><div class="product-bottom"><strong>{{ formatMoney(product.price_cents) }}</strong><button @click.stop="cart.addItem(product)" aria-label="Adicionar ao carrinho"><ShoppingBag class="w-4 h-4" /></button></div></div></article></div>
+    <div class="catalog-sentinel" aria-hidden="true"></div><div v-if="isLoadingMore" class="loading-more">Carregando mais produtos...</div>
+     </main>
+    <AuthModal :isOpen="isAuthOpen" @close="isAuthOpen = false" /><CartDrawer />
   </div>
 </template>

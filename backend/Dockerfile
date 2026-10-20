@@ -6,7 +6,7 @@ ENV AUTORUN_LARAVEL_CONFIG_CACHE="true"
 
 WORKDIR /var/www/html
 
-COPY backend/ .
+COPY . .
 
 USER root
 RUN mkdir -p storage/logs storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache \

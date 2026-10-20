@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-950 text-white antialiased font-sans">
+  <div class="min-h-screen app-shell antialiased font-sans">
     <router-view />
   </div>
 </template>

@@ -29,9 +29,10 @@ const formatMoney = (cents) => {
   <div class="group bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden flex flex-col hover:border-neutral-700 transition duration-300">
     <div class="relative aspect-4/3 overflow-hidden bg-neutral-800">
       <img 
-        :src="product.image_url" 
-        :alt="product.name" 
-        class="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+        :src="(product.images && product.images[0]) || product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600'" 
+        :alt="product.name"
+        @error="$event.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600'" 
+        class="block w-full h-full aspect-[4/3] object-cover group-hover:scale-105 transition duration-500"
       />
       <span 
         v-if="product.category" 

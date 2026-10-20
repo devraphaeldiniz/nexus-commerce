@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PaymentWebhookEvent extends Model
 {
     protected $fillable = [
-        'provider', 'event_key', 'event', 'payment_id', 'payload', 'processed_at',
+        'provider', 'event_key', 'event', 'payment_id', 'order_id', 'payload', 'processed_at',
     ];
 
     protected function casts(): array

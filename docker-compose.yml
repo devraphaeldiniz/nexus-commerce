@@ -5,9 +5,12 @@ services:
       dockerfile: Dockerfile
     container_name: nexus_app
     restart: unless-stopped
-    working_dir: /var/www
+    working_dir: /var/www/html
+    user: root
     volumes:
-      - ./backend:/var/www
+      - ./backend:/var/www/html
+    ports:
+      - "8000:8080"
     networks:
       - nexus_network
     depends_on:
@@ -44,10 +47,10 @@ services:
       dockerfile: Dockerfile
     container_name: nexus_queue
     restart: unless-stopped
-    working_dir: /var/www
+    working_dir: /var/www/html
     command: php artisan queue:work --sleep=3 --tries=3
     volumes:
-      - ./backend:/var/www
+      - ./backend:/var/www/html
     networks:
       - nexus_network
     depends_on:
@@ -58,10 +61,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000/api
     container_name: nexus_frontend
     restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "5173:80"
     volumes:
       - ./frontend:/app
       - /app/node_modules

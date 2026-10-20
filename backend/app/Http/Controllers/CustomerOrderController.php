@@ -14,10 +14,7 @@ class CustomerOrderController extends Controller
         $query = Order::query()->with(['items.product']);
 
         if ($user) {
-            $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                  ->orWhere('customer_email', $user->email);
-            });
+            $query->where('user_id', $user->id);
         } elseif ($request->filled('email')) {
             $query->where('customer_email', $request->input('email'));
         } else {
@@ -35,7 +32,7 @@ class CustomerOrderController extends Controller
         $order = Order::with(['items.product'])->findOrFail($id);
         $user = $request->user();
 
-        if ($user && $order->user_id !== $user->id && $order->customer_email !== $user->email) {
+        if ($user && $order->user_id !== $user->id) {
             return response()->json(['message' => 'Pedido não encontrado.'], 404);
         }
 

@@ -98,7 +98,7 @@ const handleSubmit = async () => {
     }
 
     // Login sem OTP direto (se houvesse)
-    auth.setAuth(data.user, data.token)
+    auth.setAuth(data.user)
     emit('close')
     resetForm()
 
@@ -122,7 +122,7 @@ const handleVerifyOtp = async () => {
       code: otpCode.value
     })
 
-    auth.setAuth(data.user, data.token)
+    auth.setAuth(data.user)
     emit('close')
     resetForm()
 

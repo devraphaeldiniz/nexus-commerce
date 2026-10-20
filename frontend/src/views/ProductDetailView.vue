@@ -94,7 +94,7 @@ const calculateShipping = async () => {
         quantity: 1
       }]
     })
-    shippingOptions.value = data.services || []
+    shippingOptions.value = data.quotes || data.services || []
   } catch (err) {
     shippingError.value = 'Não foi possível calcular o frete para este CEP.'
   } finally {

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Seller;
+use App\Enums\OrderStatus;
+use App\Services\OrderTransitionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +27,8 @@ class OrderLifecycleController extends Controller
         }
 
         DB::transaction(function () use ($order) {
-            $order->update(['status' => 'DELIVERED', 'delivered_at' => now()]);
+            app(OrderTransitionService::class)->transition($order, OrderStatus::DELIVERED);
+            $order->update(['delivered_at' => now()]);
 
             // Busca todas as custódias vinculadas a esse pedido
             $escrows = DB::table('order_escrows')

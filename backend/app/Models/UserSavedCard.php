@@ -21,6 +21,8 @@ class UserSavedCard extends Model
         'is_default',
     ];
 
+    protected $hidden = ['gateway_card_token'];
+
     protected function casts(): array
     {
         return [

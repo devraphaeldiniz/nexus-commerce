@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ RUN npm install
 COPY . .
 
 # Injeta a URL da API backend no build
-ARG VITE_API_BASE_URL=https://pleasant-light-production.up.railway.app
+ARG VITE_API_BASE_URL=http://localhost:8000/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build
