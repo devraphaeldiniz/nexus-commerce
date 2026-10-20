@@ -18,7 +18,14 @@ Marketplace multi-vendedor com catálogo, sellers moderados, checkout, pagamento
 ```text
 backend/   API Laravel, domínio, migrations, policies, filas e testes
 frontend/  SPA Vue, views, componentes, stores e router
+docs/      arquitetura e decisões técnicas
 ```
+
+Documentação complementar:
+
+- [Arquitetura](docs/ARCHITECTURE.md)
+- [Decisões técnicas](docs/DECISIONS.md)
+- [Como contribuir](CONTRIBUTING.md)
 
 ## Funcionalidades
 
