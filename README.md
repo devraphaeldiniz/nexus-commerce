@@ -123,6 +123,12 @@ php artisan tinker --execute="App\\Models\\User::firstOrCreate(['email' => env('
 
 Defina `ADMIN_DEFAULT_EMAIL` e `ADMIN_DEFAULT_PASSWORD` no ambiente. Não use credenciais padrão em produção.
 
+## Status do projeto
+
+![CI](https://github.com/devraphaeldiniz/nexus-commerce/actions/workflows/ci.yml/badge.svg)
+
+Demo local recomendada com `php artisan nexus:demo`. Screenshots da aplicação serão adicionadas posteriormente.
+
 ## Qualidade do repositório
 
 O GitHub Actions valida automaticamente frontend e backend em cada push para `main` e Pull Request. O projeto mantém documentação de arquitetura, decisões técnicas, contrato OpenAPI, templates de issues e roteiro de demonstração.
@@ -144,6 +150,14 @@ php artisan optimize:clear
 php artisan route:list
 php artisan migrate:status
 php artisan test
+composer audit
+npm audit --audit-level=high
+```
+
+Para carregar a experiência demonstrativa local:
+
+```bash
+php artisan nexus:demo
 ```
 
 ## Segurança
