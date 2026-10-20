@@ -6,7 +6,7 @@ Marketplace multi-vendedor com catálogo, sellers moderados, checkout, pagamento
 
 ## Stack
 
-- **Backend:** Laravel 11 / PHP 8.2+
+- **Backend:** Laravel 11 / PHP 8.4+
 - **Frontend:** Vue 3 / Vite / Pinia / Vue Router / Tailwind CSS
 - **Banco:** PostgreSQL
 - **Infraestrutura:** Docker, Redis, filas, Railway e Nginx
