@@ -1,0 +1,79 @@
+openapi: 3.0.3
+info:
+  title: Nexus Commerce API
+  version: 1.0.0
+  description: API demonstrativa de marketplace multi-vendedor.
+servers:
+  - url: https://pleasant-light-production.up.railway.app/api
+  - url: http://localhost:8000/api
+paths:
+  /products:
+    get:
+      summary: Lista produtos publicados
+      responses:
+        '200': { description: Lista de produtos }
+  /categories:
+    get:
+      summary: Lista categorias
+      responses:
+        '200': { description: Lista de categorias }
+  /auth/login:
+    post:
+      summary: Inicia autenticação e envia OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200': { description: OTP enviado }
+        '401': { description: Credenciais inválidas }
+  /auth/register:
+    post:
+      summary: Cria conta de cliente ou seller
+      responses:
+        '201': { description: Conta criada }
+  /auth/verify-email:
+    post:
+      summary: Confirma OTP e cria sessão HttpOnly
+      responses:
+        '200': { description: Sessão criada }
+  /auth/me:
+    get:
+      security: [{ cookieAuth: [] }]
+      summary: Retorna usuário autenticado
+      responses:
+        '200': { description: Usuário atual }
+        '401': { description: Não autenticado }
+  /checkout:
+    post:
+      security: [{ cookieAuth: [] }]
+      summary: Cria pedido recalculando estoque e preços no servidor
+      responses:
+        '201': { description: Pedido criado }
+        '422': { description: Dados inválidos ou estoque insuficiente }
+  /webhooks/asaas:
+    post:
+      summary: Recebe evento idempotente do Asaas
+      parameters:
+        - name: asaas-access-token
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Evento processado }
+        '401': { description: Token inválido }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: nexus_auth
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }

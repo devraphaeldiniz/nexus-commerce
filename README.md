@@ -26,6 +26,8 @@ Documentação complementar:
 - [Arquitetura](docs/ARCHITECTURE.md)
 - [Decisões técnicas](docs/DECISIONS.md)
 - [Como contribuir](CONTRIBUTING.md)
+- [Contrato OpenAPI](docs/openapi.yaml)
+- [Roteiro de demonstração](docs/DEMO.md)
 
 ## Funcionalidades
 
@@ -120,6 +122,10 @@ php artisan tinker --execute="App\\Models\\User::firstOrCreate(['email' => env('
 ```
 
 Defina `ADMIN_DEFAULT_EMAIL` e `ADMIN_DEFAULT_PASSWORD` no ambiente. Não use credenciais padrão em produção.
+
+## Qualidade do repositório
+
+O GitHub Actions valida automaticamente frontend e backend em cada push para `main` e Pull Request. O projeto mantém documentação de arquitetura, decisões técnicas, contrato OpenAPI, templates de issues e roteiro de demonstração.
 
 ## Testes e validação
 
