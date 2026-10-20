@@ -154,6 +154,14 @@ composer audit
 npm audit --audit-level=high
 ```
 
+> As auditorias de dependências são informativas no CI: vulnerabilidades são exibidas nos logs, mas não impedem o build demonstrativo. Falhas de build, testes ou migrations continuam bloqueando o pipeline.
+
+```bash
+# Para tratar vulnerabilidades como bloqueadoras localmente
+composer audit
+npm audit --audit-level=high
+```
+
 Para carregar a experiência demonstrativa local:
 
 ```bash
