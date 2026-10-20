@@ -109,13 +109,7 @@ class AsaasService
             'value'             => (float)$amount,
             'dueDate'           => now()->format('Y-m-d'),
             'description'       => 'Compra Nexus Commerce - Cartao',
-            'creditCard' => [
-                'holderName'  => $cardData['holder_name'],
-                'number'      => preg_replace('/\D/', '', $cardData['number']),
-                'expiryMonth' => str_pad($cardData['expiry_month'], 2, '0', STR_PAD_LEFT),
-                'expiryYear'  => strlen($cardData['expiry_year']) === 2 ? '20' . $cardData['expiry_year'] : $cardData['expiry_year'],
-                'ccv'         => $cardData['ccv'],
-            ],
+            'creditCardToken' => $cardData['token'],
             'creditCardHolderInfo' => [
                 'name'              => $cardData['holder_name'],
                 'email'             => $email,

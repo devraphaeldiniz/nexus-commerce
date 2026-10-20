@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 
 // Rotas Públicas
 Route::get('/products', [ProductController::class, 'index']);
@@ -173,7 +174,7 @@ Route::post('/legacy/login', function (Request $request) {
 // CHECKOUT ASAAS (PIX & CARTÃO)
 Route::post('/checkout', [CheckoutController::class, 'process'])
     ->middleware(['api.auth', 'throttle:20,1']);
-Route::post('/checkout/asaas/pix', function (Request $request) {
+Route::middleware('api.auth')->post('/checkout/asaas/pix', function (Request $request) {
     $validated = $request->validate([
         'amount' => 'required|numeric|min:1',
         'name'   => 'required|string',
@@ -195,18 +196,14 @@ Route::post('/checkout/asaas/pix', function (Request $request) {
     }
 });
 
-Route::post('/checkout/asaas/card', function (Request $request) {
+Route::middleware('api.auth')->post('/checkout/asaas/card', function (Request $request) {
     $validated = $request->validate([
         'amount'      => 'required|numeric|min:1',
         'name'        => 'required|string',
         'email'       => 'required|email',
         'cpf'         => 'required|string',
-        'card'        => 'required|array',
-        'card.holder_name'  => 'required|string',
-        'card.number'       => 'required|string',
-        'card.expiry_month' => 'required|string',
-        'card.expiry_year'  => 'required|string',
-        'card.ccv'          => 'required|string',
+        'card_token'       => 'required|string|max:255',
+        'card'             => 'prohibited',
         'card.postal_code'  => 'nullable|string',
     ]);
 
@@ -216,7 +213,7 @@ Route::post('/checkout/asaas/card', function (Request $request) {
             $validated['name'],
             $validated['email'],
             $validated['cpf'],
-            $validated['card']
+            ['token' => $validated['card_token']]
         );
         return response()->json($result);
     } catch (\Exception $e) {
@@ -252,7 +249,12 @@ Route::post('/webhooks/asaas', function (Request $request) {
         Log::info("Pagamento {$paymentId} CONFIRMADO no Asaas! Liberando pedido em custódia (Escrow).");
         // Atualiza status caso esteja atrelado à tabela orders
         if ($paymentId && Schema::hasTable('orders')) {
-            DB::table('orders')->where('gateway_payment_id', $paymentId)->update(['status' => 'PAID']);
+            DB::transaction(function () use ($paymentId) {
+                DB::table('orders')
+                    ->where('gateway_payment_id', $paymentId)
+                    ->whereIn('status', ['PENDING', 'PROCESSING'])
+                    ->update(['status' => 'PAID', 'paid_at' => now(), 'updated_at' => now()]);
+            });
         }
     }
 

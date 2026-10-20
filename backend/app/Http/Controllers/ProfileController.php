@@ -130,18 +130,15 @@ class ProfileController extends Controller
     {
         $validated = $request->validate([
             'card_holder_name' => 'required|string|max:100',
-            'card_number'      => 'required|string|min:13|max:19',
+            'gateway_card_token' => 'required|string|max:255',
+            'card_number'      => 'prohibited',
             'cvv'              => 'prohibited',
             'exp_month'        => 'required|string|size:2',
             'exp_year'         => 'required|string|min:2|max:4',
             'card_brand'       => ['required', Rule::in(['VISA', 'MASTERCARD', 'ELO', 'AMEX', 'HIPERCARD'])],
         ]);
 
-        $cleanNumber = preg_replace('/\D/', '', $validated['card_number']);
-        if (strlen($cleanNumber) < 13 || strlen($cleanNumber) > 19) {
-            return response()->json(['message' => 'Número de cartão inválido.'], 422);
-        }
-        $lastFour = substr($cleanNumber, -4);
+        $lastFour = '****';
 
         $user = $request->user();
         $isFirstCard = $user->savedCards()->count() === 0;
@@ -153,7 +150,7 @@ class ProfileController extends Controller
             'last_four'          => $lastFour,
             'exp_month'          => str_pad($validated['exp_month'], 2, '0', STR_PAD_LEFT),
             'exp_year'           => strlen($validated['exp_year']) === 2 ? '20' . $validated['exp_year'] : $validated['exp_year'],
-            'gateway_card_token' => 'tok_' . Str::uuid(),
+            'gateway_card_token' => $validated['gateway_card_token'],
             'is_default'         => $isFirstCard,
         ]);
 

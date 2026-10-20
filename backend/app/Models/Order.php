@@ -27,6 +27,8 @@ class Order extends Model
         'tracking_code',
         'shipped_at',
         'shipping_address',
+        'gateway_payment_id',
+        'paid_at',
     ];
 
     public function user(): BelongsTo

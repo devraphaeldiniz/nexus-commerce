@@ -14,15 +14,6 @@ class AuthenticateApi
     {
         $token = $request->cookie('nexus_auth');
 
-        // Compatibilidade temporária: tokens Bearer serão aceitos apenas durante a migração.
-
-        $header = $request->header('Authorization')
-            ?: $request->server('HTTP_AUTHORIZATION')
-            ?: $request->server('REDIRECT_HTTP_AUTHORIZATION');
-
-        if (! $token && $header && preg_match('/^Bearer\s+(.+)$/i', $header, $matches)) {
-            $token = trim($matches[1]);
-        }
 
         if (! $token) {
             return response()->json(['message' => 'Token de autenticação não fornecido.'], 401);

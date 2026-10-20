@@ -8,6 +8,8 @@ import axios from 'axios'
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'https://pleasant-light-production.up.railway.app/api'
 axios.defaults.headers.common['Accept'] = 'application/json'
 axios.defaults.withCredentials = true
+axios.defaults.xsrfCookieName = 'XSRF-TOKEN'
+axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN'
 
 
 axios.interceptors.response.use(

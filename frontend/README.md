@@ -1,5 +1,43 @@
-# Vue 3 + Vite
+# Nexus Commerce Web
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+SPA do marketplace Nexus Commerce, construída com Vue 3, Vite, Pinia e Vue Router.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Scripts
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run preview
+```
+
+## Configuração
+
+Crie `.env` a partir de `.env.example`:
+
+```env
+VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+Em produção, use a URL pública da API. O Axios utiliza `withCredentials` para enviar o cookie HttpOnly de sessão.
+
+## Rotas principais
+
+- `/` — storefront e catálogo;
+- `/products/:id` — detalhe do produto;
+- `/login` — autenticação;
+- `/profile` — perfil e segurança;
+- `/orders` — pedidos do cliente;
+- `/seller` — operação do vendedor aprovado.
+
+## Arquitetura
+
+```text
+src/views        telas e fluxos de navegação
+src/components   componentes reutilizáveis
+src/stores       estado global de autenticação e carrinho
+src/router       navegação e guards de acesso
+src/assets       imagens e recursos visuais
+```
+
+O token de autenticação não é salvo no `localStorage`. A sessão é mantida pelo cookie HttpOnly emitido pela API.
