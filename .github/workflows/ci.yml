@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
-        with: { php-version: '8.3', extensions: pdo_pgsql }
+        with: { php-version: '8.4', extensions: pdo_pgsql }
       - run: composer install --no-interaction --prefer-dist
       - run: composer audit --locked
       - run: php artisan test
