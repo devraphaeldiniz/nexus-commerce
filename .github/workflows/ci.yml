@@ -29,7 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
-        with: { php-version: '8.4', extensions: pdo_pgsql }
+        with:
+          php-version: '8.4'
+          extensions: mbstring, ctype, fileinfo, openssl, tokenizer, xml, bcmath, pdo_pgsql
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: composer audit --locked
       - run: php artisan migrate --force
