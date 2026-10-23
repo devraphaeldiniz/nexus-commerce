@@ -1,53 +1,101 @@
 # Nexus Commerce ⚡
 
-Marketplace multi-vendedor com catálogo, sellers moderados, checkout, pagamentos, custódia financeira (escrow), disputas, logística e painel operacional.
+[![CI](https://github.com/devraphaeldiniz/nexus-commerce/actions/workflows/ci.yml/badge.svg)](https://github.com/devraphaeldiniz/nexus-commerce/actions)
+[![PHP Version](https://img.shields.io/badge/PHP-8.4-777BB4?style=flat-square&logo=php)](https://php.net)
+[![Laravel](https://img.shields.io/badge/Laravel-11-FF2D20?style=flat-square&logo=laravel)](https://laravel.com)
+[![Vue](https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vuedotjs)](https://vuejs.org)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-> Status: base avançada de desenvolvimento/pré-produção. Antes de operar com dinheiro real, configure as credenciais, execute as migrations e valide os testes do backend.
+Plataforma de marketplace multi-vendedor com custódia financeira (*escrow*), catálogo moderado e checkout protegido. O sistema resolve a complexidade de retenção e repasse seguro de fundos entre múltiplos lojistas e clientes, mitigando fraudes via controle de liberação pós-entrega e processamento assíncrono de webhooks.
 
-## Stack
+---
 
-- **Backend:** Laravel 11 / PHP 8.4+
-- **Frontend:** Vue 3 / Vite / Pinia / Vue Router / Tailwind CSS
-- **Banco:** PostgreSQL
-- **Infraestrutura:** Docker, Redis, filas, Railway e Nginx
-- **Pagamentos:** Asaas (PIX/cartão) com webhook protegido e idempotente
-- **E-mail/OTP:** Brevo/Resend conforme configuração do ambiente
+## 🏗️ Arquitetura do Sistema
 
-## Estrutura
-
-```text
-backend/   API Laravel, domínio, migrations, policies, filas e testes
-frontend/  SPA Vue, views, componentes, stores e router
-docs/      arquitetura e decisões técnicas
+```mermaid
+flowchart TD
+    SPA[Frontend SPA - Vue 3 / Vite] -->|HTTPS / REST API com Cookies HttpOnly| API[Backend Laravel 11]
+    
+    subgraph Seguranca & Autorizacao
+        Auth[Autenticação OTP + RBAC]
+        Policies[Laravel Policies: Admin / Seller / Customer]
+    end
+    
+    API --> Auth
+    Auth --> Policies
+    
+    subgraph Persistencia & Transacoes
+        DB[(PostgreSQL 16)]
+        Escrow[Controle de Escrow e Ledger]
+        Estoque[Controle de Estoque Concorrente]
+    end
+    
+    Policies --> Escrow
+    Policies --> Estoque
+    Escrow --> DB
+    Estoque --> DB
+    
+    subgraph Filas & Mensageria
+        Redis[(Redis - Filas & Lock)]
+        QueueWorker[Laravel Queue Worker]
+    end
+    
+    API -->|Despacho de Eventos e Notificações| Redis
+    Redis --> QueueWorker
+    
+    subgraph Integracao Externa
+        Gateway[Gateway Asaas - PIX / Cartão]
+        EmailProvider[Brevo / Resend - E-mails Transacionais]
+    end
+    
+    API -->|Cobrança e Tokenização| Gateway
+    Gateway -->|Webhook Idempotente| API
+    QueueWorker --> EmailProvider
 ```
 
-Documentação complementar:
+---
 
-- [Arquitetura](docs/ARCHITECTURE.md)
-- [Decisões técnicas](docs/DECISIONS.md)
-- [Como contribuir](CONTRIBUTING.md)
-- [Contrato OpenAPI](docs/openapi.yaml)
-- [Roteiro de demonstração](docs/DEMO.md)
-- [Changelog](CHANGELOG.md)
+## ✨ Funcionalidades Principais
 
-## Funcionalidades
+- **Marketplace Multi-Tenant:** Isolamento lógico de dados por vendedor com aprovação prévia obrigatória (`is_approved`) pelo perfil administrador.
+- **Custódia Financeira (*Escrow*):** Retenção temporária do valor pago até a confirmação de entrega do produto pelo cliente ou resolução de disputas.
+- **Webhooks com Idempotência Estrita:** Processamento de notificações de pagamento do Asaas com assinatura segura e chave de idempotência para evitar duplicidade de crédito.
+- **Controle de Concorrência de Estoque:** Atualização de saldos de produtos em transações protegidas, impedindo *overselling*.
+- **Autenticação Segura sem Exposição de Token:** Sessões gerenciadas via cookies `HttpOnly`, `Secure` e `SameSite`, prevenindo riscos de XSS no armazenamento de tokens em local storage.
+- **Processamento Assíncrono:** Envio de e-mails, atualização de status de pedidos e conciliação executados em filas desacopladas no Redis.
 
-- Cadastro e login com OTP.
-- Perfis `ADMIN`, `SELLER` e `CUSTOMER`.
-- Aprovação de sellers antes de operar.
-- Catálogo público, categorias e estoque concorrente.
-- Carrinho, frete e checkout protegido.
-- PIX/cartão via Asaas.
-- Webhook Asaas com token e idempotência persistente.
-- Escrow, ledger, liberação após entrega e disputas.
-- Rastreamento e transições logísticas controladas.
-- Policies para autorização de pedidos e operações protegidas.
-- Sessão por cookie `HttpOnly`, `Secure` e `SameSite`.
+---
 
-## Configuração local
+## 🛠️ Stack Tecnológica & Decisões Técnicas
 
-### Backend
+| Componente | Tecnologia | Decisão Técnica |
+| :--- | :--- | :--- |
+| **Backend** | Laravel 11 (PHP 8.4) | Ecossistema maduro para modelagem de domínio com Eloquent ORM, autorização declarativa via Policies e suporte nativo a filas robustas. |
+| **Frontend** | Vue 3 + Vite + Tailwind | Single Page Application com carregamento rápido, gerenciamento de estado via Pinia e tipagem limpa. |
+| **Banco Principal** | PostgreSQL 16 | Integridade referencial estrita, suporte a transações ACID complexas e tipos nativos avançados. |
+| **Filas & Cache** | Redis | Gerenciamento de alta vazão para enfileiramento de jobs assíncronos e travas temporárias. |
+| **Gateway de Pagamento** | Asaas (PIX / Cartão) | Provedor nacional com suporte a split de pagamento e webhooks de confirmação. |
 
+---
+
+## 🚀 Como Rodar o Projeto
+
+### Opção 1: Via Docker Compose (Recomendado)
+```bash
+docker compose up -d --build
+```
+Após subir os containers:
+```bash
+docker compose exec app php artisan migrate --seed
+```
+Serviços disponíveis:
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+### Opção 2: Desenvolvimento Local
+#### Backend
 ```bash
 cd backend
 composer install
@@ -57,125 +105,48 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-Configure no `.env`:
-
-```env
-APP_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:5173
-SESSION_DRIVER=database
-SESSION_HTTP_ONLY=true
-SESSION_SECURE_COOKIE=false
-SESSION_SAME_SITE=lax
-CORS_ALLOWED_ORIGINS=http://localhost:5173
-ASAAS_API_KEY=
-ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3
-ASAAS_WEBHOOK_TOKEN=
-BREVO_API_KEY=
-```
-
-### Frontend
-
+#### Frontend
 ```bash
 cd frontend
 npm install
-copy .env.example .env
+cp .env.example .env
 npm run dev
 ```
 
-Configure `frontend/.env`:
+---
 
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
-```
+## 🧪 Como Rodar os Testes
 
-Em PowerShell, o comando equivalente para copiar o arquivo é:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-## Produção
-
-Frontend:
-
-- https://frontend-production-3603.up.railway.app
-
-API:
-
-- https://pleasant-light-production.up.railway.app
-
-Para produção, configure:
-
-```env
-SESSION_SECURE_COOKIE=true
-SESSION_SAME_SITE=none
-CORS_ALLOWED_ORIGINS=https://frontend-production-3603.up.railway.app
-```
-
-Nunca versione `.env`, chaves Asaas, chaves de e-mail ou credenciais administrativas.
-
-## Administrador inicial
-
-Provisione o administrador somente por ambiente seguro:
-
+### Testes do Backend (Unitários e Integração)
 ```bash
-php artisan tinker --execute="App\\Models\\User::firstOrCreate(['email' => env('ADMIN_DEFAULT_EMAIL', 'admin@seudominio.com')], ['name' => 'Nexus Master', 'password' => Hash::make(env('ADMIN_DEFAULT_PASSWORD', 'sua-senha-segura')), 'role' => 'ADMIN', 'is_approved' => true]);"
+cd backend
+php artisan test
 ```
 
-Defina `ADMIN_DEFAULT_EMAIL` e `ADMIN_DEFAULT_PASSWORD` no ambiente. Não use credenciais padrão em produção.
-
-## Status do projeto
-
-![CI](https://github.com/devraphaeldiniz/nexus-commerce/actions/workflows/ci.yml/badge.svg)
-![Coverage](https://img.shields.io/badge/coverage-CI%20artifact-informational)
-![Release](https://img.shields.io/github/v/release/devraphaeldiniz/nexus-commerce?label=demo%20release)
-
-Demo local recomendada com `php artisan nexus:demo`. Screenshots da aplicação serão adicionadas posteriormente.
-
-## Qualidade do repositório
-
-O GitHub Actions valida automaticamente frontend e backend em cada push para `main` e Pull Request. O projeto mantém documentação de arquitetura, decisões técnicas, contrato OpenAPI, templates de issues e roteiro de demonstração.
-
-## Testes e validação
-
-Frontend:
-
+### Validação de Build do Frontend
 ```bash
 cd frontend
 npm run build
 ```
 
-Backend:
+---
 
-```bash
-cd backend
-php artisan optimize:clear
-php artisan route:list
-php artisan migrate:status
-php artisan test
-composer audit
-npm audit --audit-level=high
-```
+## 📊 Resultados e Métricas
 
-> As auditorias de dependências são informativas no CI: vulnerabilidades são exibidas nos logs, mas não impedem o build demonstrativo. Falhas de build, testes ou migrations continuam bloqueando o pipeline.
+- **Suíte de Testes Automatizados:** Cobertura de cenários de transição de status de pedidos, cálculo de taxas de escrow e autorização de policies executados via GitHub Actions.
+- **Latência de Processamento de Webhooks:** `TODO: Conduzir testes de carga de disparo de webhooks concorrentes e medir tempo de resposta do endpoint de liquidação.`
+- **Capacidade Máxima de Concorrência em Checkout:** `TODO: Documentar limite de requisições por segundo em checkout simultâneo.`
 
-```bash
-# Para tratar vulnerabilidades como bloqueadoras localmente
-composer audit
-npm audit --audit-level=high
-```
+---
 
-Para carregar a experiência demonstrativa local:
+## ⚠️ Limitações e Próximos Passos
 
-```bash
-php artisan nexus:demo
-```
+- [ ] Implementar integração direta de cálculo de frete dinâmico via API dos Correios / Melhor Envio.
+- [ ] Adicionar suporte a estorno automático parcial diretamente pela interface de disputas.
+- [ ] Implementar telemetria com exportação de métricas via OpenTelemetry.
 
-## Segurança
+---
 
-- Autenticação principal por cookie `HttpOnly`; o frontend não persiste token de sessão.
-- Cookies cross-origin exigem HTTPS, `SameSite=None` e CORS com credenciais em produção.
-- Não registre PAN, CVV, tokens, OTP ou payloads sensíveis.
-- Use tokenização oficial do provedor de pagamentos para cartões.
-- Webhooks devem receber `ASAAS_WEBHOOK_TOKEN` e permanecer idempotentes.
-- Revise migrations e execute backup antes de migrar banco de produção.
+## 📄 Licença
+
+Distribuído sob a licença MIT. Consulte [LICENSE](LICENSE) para mais detalhes.
